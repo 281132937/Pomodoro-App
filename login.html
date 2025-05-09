@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - Pomodoro Scheduler</title>
+    <link rel="stylesheet" href="login.css">
+</head>
+<body>
+    <div class="login-container">
+        <div class="login-card">
+            <div class="login-header">
+                <h1>Welcome Back</h1>
+                <p>Sign in to continue to Pomodoro Scheduler</p>
+            </div>
+
+            <form id="login-form" class="login-form">
+                <div class="form-group">
+                    <label for="email">Email</label>
+                    <input type="email" id="email" required>
+                </div>
+                <div class="form-group">
+                    <label for="password">Password</label>
+                    <input type="password" id="password" required>
+                </div>
+                <button type="submit" class="login-btn">Sign In</button>
+            </form>
+
+            <div class="divider">
+                <span>or</span>
+            </div>
+
+            <button id="google-signin" class="google-btn">
+                <img src="https://www.google.com/favicon.ico" alt="Google">
+                Sign in with Google
+            </button>
+
+            <p class="signup-link">
+                Don't have an account? <a href="#" id="show-signup">Sign up</a>
+            </p>
+        </div>
+
+        <!-- Sign Up Form (Hidden by default) -->
+        <div class="login-card" id="signup-card" style="display: none;">
+            <div class="login-header">
+                <h1>Create Account</h1>
+                <p>Sign up to get started with Pomodoro Scheduler</p>
+            </div>
+
+            <form id="signup-form" class="login-form">
+                <div class="form-group">
+                    <label for="signup-email">Email</label>
+                    <input type="email" id="signup-email" required>
+                </div>
+                <div class="form-group">
+                    <label for="signup-password">Password</label>
+                    <input type="password" id="signup-password" required>
+                </div>
+                <div class="form-group">
+                    <label for="confirm-password">Confirm Password</label>
+                    <input type="password" id="confirm-password" required>
+                </div>
+                <button type="submit" class="login-btn">Sign Up</button>
+            </form>
+
+            <p class="signup-link">
+                Already have an account? <a href="#" id="show-login">Sign in</a>
+            </p>
+        </div>
+    </div>
+
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+    <script src="firebase-config.js"></script>
+    <script src="auth.js"></script>
+</body>
+</html> 
