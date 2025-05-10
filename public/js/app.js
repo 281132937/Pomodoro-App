@@ -165,11 +165,74 @@ function addTaskHandler(e) {
     const dueDate = document.getElementById('task-due-date').value;
     const duration = parseFloat(document.getElementById('task-duration').value);
 
-    const task = new Task(name, dueDate, duration);
+    console.log(`Creating task: ${name}, due: ${dueDate}, duration: ${duration}`);
+    
+    // Create the task with a unique ID
+    const task = {
+        id: 'task-' + Date.now(),
+        name: name,
+        dueDate: new Date(dueDate),
+        duration: duration,
+        completedSessions: 0,
+        totalSessions: Math.ceil(duration * 4)
+    };
+    
+    // Generate sessions for this task
+    const sessions = [];
+    let currentTime = new Date();
+    
+    // Adjust start time based on working hours
+    if (currentTime.getHours() >= WORKING_HOURS.end) {
+        currentTime.setDate(currentTime.getDate() + 1);
+        currentTime.setHours(WORKING_HOURS.start, 0, 0, 0);
+    }
+    
+    if (currentTime.getHours() < WORKING_HOURS.start) {
+        currentTime.setHours(WORKING_HOURS.start, 0, 0, 0);
+    }
+    
+    console.log(`Generating ${task.totalSessions} sessions starting from ${currentTime.toLocaleString()}`);
+    
+    // Generate sessions
+    for (let i = 0; i < task.totalSessions; i++) {
+        // Move to next day if outside working hours
+        if (currentTime.getHours() >= WORKING_HOURS.end) {
+            currentTime.setDate(currentTime.getDate() + 1);
+            currentTime.setHours(WORKING_HOURS.start, 0, 0, 0);
+        }
+        
+        const startTime = new Date(currentTime.getTime());
+        const endTime = new Date(currentTime.getTime() + POMODORO_DURATION * 1000);
+        
+        sessions.push({
+            id: `session-${i}-${Date.now()}`,
+            startTime: startTime,
+            endTime: endTime,
+            isBreak: false,
+            completed: false
+        });
+        
+        // Move forward by pomodoro + break duration
+        currentTime.setTime(currentTime.getTime() + (POMODORO_DURATION + BREAK_DURATION) * 1000);
+    }
+    
+    // Add sessions to task
+    task.sessions = sessions;
+    
+    // Add task to tasks array
     tasks.push(task);
+    
+    // Save tasks immediately
     saveTasks();
+    
+    // Render UI updates
+    console.log("Rendering tasks...");
     renderTasks();
+    
+    console.log("Rendering calendar...");
     renderCalendar();
+    
+    // Reset form
     taskForm.reset();
 }
 
@@ -207,60 +270,120 @@ function loadTasks() {
         db.collection('users').doc(currentUser.uid).collection('tasks').doc('taskList')
             .get()
             .then(doc => {
-                if (doc.exists && doc.data().tasks) {
-                    // Convert date strings back to Date objects
+                if (doc.exists && doc.data().tasks && Array.isArray(doc.data().tasks)) {
+                    // Get the tasks from Firestore
                     const rawTasks = doc.data().tasks;
                     console.log('🔥 FIREBASE SUCCESS: Found', rawTasks.length, 'tasks in Firestore');
                     
-                    tasks = processTasks(rawTasks);
+                    // Fix dates in loaded tasks
+                    tasks = rawTasks.map(task => {
+                        // Convert string dates back to Date objects
+                        if (typeof task.dueDate === 'string') {
+                            task.dueDate = new Date(task.dueDate);
+                        }
+                        
+                        // Convert session dates
+                        if (task.sessions && Array.isArray(task.sessions)) {
+                            task.sessions = task.sessions.map(session => {
+                                if (typeof session.startTime === 'string') {
+                                    session.startTime = new Date(session.startTime);
+                                }
+                                if (typeof session.endTime === 'string') {
+                                    session.endTime = new Date(session.endTime);
+                                }
+                                return session;
+                            });
+                        }
+                        
+                        return task;
+                    });
+                    
                     console.log('🔥 FIREBASE: Tasks processed and ready for use:', tasks.length);
                 } else {
-                    console.log('🔥 FIREBASE: No tasks found in Firestore, starting with empty array');
+                    console.log('🔥 FIREBASE: No valid tasks found in Firestore, starting with empty array');
                     tasks = [];
                 }
+                
+                // Render the UI with the loaded tasks
                 renderTasks();
                 renderCalendar();
             })
             .catch(error => {
                 console.error('🔥 FIREBASE ERROR: Error loading tasks from Firestore:', error);
+                
                 // Fall back to localStorage
                 console.log('💾 LOCAL: Falling back to localStorage due to Firestore error');
-                tasks = JSON.parse(localStorage.getItem('tasks')) || [];
+                const storedTasks = localStorage.getItem('tasks');
+                
+                if (storedTasks) {
+                    try {
+                        tasks = JSON.parse(storedTasks);
+                        
+                        // Fix dates
+                        tasks.forEach(task => {
+                            if (typeof task.dueDate === 'string') {
+                                task.dueDate = new Date(task.dueDate);
+                            }
+                            
+                            if (task.sessions) {
+                                task.sessions.forEach(session => {
+                                    if (typeof session.startTime === 'string') {
+                                        session.startTime = new Date(session.startTime);
+                                    }
+                                    if (typeof session.endTime === 'string') {
+                                        session.endTime = new Date(session.endTime);
+                                    }
+                                });
+                            }
+                        });
+                    } catch (e) {
+                        console.error('Error parsing tasks from localStorage:', e);
+                        tasks = [];
+                    }
+                } else {
+                    tasks = [];
+                }
+                
                 renderTasks();
                 renderCalendar();
             });
     } else {
         // Load from localStorage
         console.log('💾 LOCAL: Loading from localStorage (not signed in)');
-        tasks = JSON.parse(localStorage.getItem('tasks')) || [];
+        const storedTasks = localStorage.getItem('tasks');
+        
+        if (storedTasks) {
+            try {
+                tasks = JSON.parse(storedTasks);
+                
+                // Fix dates
+                tasks.forEach(task => {
+                    if (typeof task.dueDate === 'string') {
+                        task.dueDate = new Date(task.dueDate);
+                    }
+                    
+                    if (task.sessions) {
+                        task.sessions.forEach(session => {
+                            if (typeof session.startTime === 'string') {
+                                session.startTime = new Date(session.startTime);
+                            }
+                            if (typeof session.endTime === 'string') {
+                                session.endTime = new Date(session.endTime);
+                            }
+                        });
+                    }
+                });
+            } catch (e) {
+                console.error('Error parsing tasks from localStorage:', e);
+                tasks = [];
+            }
+        } else {
+            tasks = [];
+        }
+        
         renderTasks();
         renderCalendar();
     }
-}
-
-// Process tasks after loading from Firestore to fix date objects
-function processTasks(rawTasks) {
-    return rawTasks.map(task => {
-        // Convert dueDate string back to Date object
-        if (typeof task.dueDate === 'string') {
-            task.dueDate = new Date(task.dueDate);
-        }
-        
-        // Convert session date strings back to Date objects
-        if (task.sessions && Array.isArray(task.sessions)) {
-            task.sessions = task.sessions.map(session => {
-                if (session.startTime && typeof session.startTime === 'string') {
-                    session.startTime = new Date(session.startTime);
-                }
-                if (session.endTime && typeof session.endTime === 'string') {
-                    session.endTime = new Date(session.endTime);
-                }
-                return session;
-            });
-        }
-        
-        return task;
-    });
 }
 
 // Save Tasks to Firestore or localStorage
@@ -270,19 +393,49 @@ function saveTasks() {
         console.log('🔥 FIREBASE: Attempting to save tasks to Firestore for user:', currentUser.uid);
         console.log('🔥 FIREBASE: Number of tasks being saved:', tasks.length);
         
-        db.collection('users').doc(currentUser.uid).collection('tasks').doc('taskList')
-            .set({ tasks: tasks })
-            .then(() => {
-                console.log('🔥 FIREBASE SUCCESS: Tasks saved to Firestore successfully');
+        try {
+            // Create a deep clone of the tasks array to avoid reference issues
+            const serializableTasks = JSON.parse(JSON.stringify(tasks));
+            
+            // Convert Date objects to strings for Firestore
+            serializableTasks.forEach(task => {
+                if (task.dueDate instanceof Date) {
+                    task.dueDate = task.dueDate.toISOString();
+                }
                 
-                // Verify by reading back the data
-                setTimeout(() => verifyFirestoreData(), 1000);
-            })
-            .catch(error => {
-                console.error('🔥 FIREBASE ERROR: Error saving tasks to Firestore:', error);
-                // Fall back to localStorage
-                localStorage.setItem('tasks', JSON.stringify(tasks));
+                if (task.sessions && Array.isArray(task.sessions)) {
+                    task.sessions.forEach(session => {
+                        if (session.startTime instanceof Date) {
+                            session.startTime = session.startTime.toISOString();
+                        }
+                        if (session.endTime instanceof Date) {
+                            session.endTime = session.endTime.toISOString();
+                        }
+                    });
+                }
             });
+            
+            console.log('Saving serialized tasks:', serializableTasks);
+            
+            // Use set with merge to preserve other fields if they exist
+            const userDocRef = db.collection('users').doc(currentUser.uid);
+            userDocRef.collection('tasks').doc('taskList')
+                .set({ 
+                    tasks: serializableTasks,
+                    lastUpdated: firebase.firestore.FieldValue.serverTimestamp()
+                })
+                .then(() => {
+                    console.log('🔥 FIREBASE SUCCESS: Tasks saved to Firestore successfully');
+                })
+                .catch(error => {
+                    console.error('🔥 FIREBASE ERROR: Error saving tasks to Firestore:', error);
+                    // Fallback to localStorage
+                    localStorage.setItem('tasks', JSON.stringify(tasks));
+                });
+        } catch (error) {
+            console.error('Error preparing tasks for Firestore:', error);
+            localStorage.setItem('tasks', JSON.stringify(tasks));
+        }
     } else {
         // Save to localStorage if not signed in
         console.log('💾 LOCAL: Saving to localStorage (not signed in)');
@@ -314,45 +467,59 @@ function verifyFirestoreData() {
 
 // Render Tasks
 function renderTasks() {
+    console.log(`Rendering ${tasks.length} tasks to the task list...`);
     tasksContainer.innerHTML = '';
-    tasks.forEach(task => {
-        // Calculate progress percentage
-        const progressPercentage = (task.completedSessions / task.totalSessions) * 100 || 0;
-        
-        // Format due date in a cleaner way
-        const dueDate = new Date(task.dueDate);
-        const formattedDate = dueDate.toLocaleDateString(undefined, {
-            year: 'numeric',
-            month: 'short',
-            day: 'numeric',
-            hour: '2-digit',
-            minute: '2-digit'
-        });
-        
-        const taskElement = document.createElement('div');
-        taskElement.className = 'task-item';
-        taskElement.innerHTML = `
-            <h3>${task.name}</h3>
-            <div class="task-info">
-                <span class="task-info-label">Due:</span>
-                <span class="task-info-value">${formattedDate}</span>
-            </div>
-            <div class="task-progress">
+    
+    if (tasks.length === 0) {
+        tasksContainer.innerHTML = '<div class="empty-tasks-message">No tasks yet. Add your first task!</div>';
+        return;
+    }
+    
+    tasks.forEach((task, index) => {
+        try {
+            // Debug info
+            console.log(`Rendering task ${index}: ${task.name}, ID: ${task.id}`);
+            
+            // Calculate progress percentage
+            const progressPercentage = (task.completedSessions / task.totalSessions) * 100 || 0;
+            
+            // Format due date in a cleaner way
+            const dueDate = new Date(task.dueDate);
+            const formattedDate = dueDate.toLocaleDateString(undefined, {
+                year: 'numeric',
+                month: 'short',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+            
+            const taskElement = document.createElement('div');
+            taskElement.className = 'task-item';
+            taskElement.innerHTML = `
+                <h3>${task.name}</h3>
                 <div class="task-info">
-                    <span class="task-info-label">Progress:</span>
-                    <span class="task-info-value">${task.completedSessions}/${task.totalSessions} sessions</span>
+                    <span class="task-info-label">Due:</span>
+                    <span class="task-info-value">${formattedDate}</span>
                 </div>
-                <div class="progress-bar">
-                    <div class="progress-fill" style="width: ${progressPercentage}%"></div>
+                <div class="task-progress">
+                    <div class="task-info">
+                        <span class="task-info-label">Progress:</span>
+                        <span class="task-info-value">${task.completedSessions}/${task.totalSessions} sessions</span>
+                    </div>
+                    <div class="progress-bar">
+                        <div class="progress-fill" style="width: ${progressPercentage}%"></div>
+                    </div>
                 </div>
-            </div>
-            <div class="task-buttons">
-                <button onclick="startTask('${task.id}')">Start</button>
-                <button onclick="editTask('${task.id}')">Edit</button>
-                <button onclick="deleteTask('${task.id}')">Delete</button>
-            </div>
-        `;
-        tasksContainer.appendChild(taskElement);
+                <div class="task-buttons">
+                    <button onclick="startTask('${task.id}')">Start</button>
+                    <button onclick="editTask('${task.id}')">Edit</button>
+                    <button onclick="deleteTask('${task.id}')">Delete</button>
+                </div>
+            `;
+            tasksContainer.appendChild(taskElement);
+        } catch (error) {
+            console.error(`Error rendering task ${index}:`, error);
+        }
     });
 }
 
@@ -419,9 +586,18 @@ function deleteTask(taskId) {
 
 // Start Task
 function startTask(taskId) {
+    if (!tasks || tasks.length === 0) {
+        console.error('No tasks available');
+        return;
+    }
+    
     currentTask = tasks.find(task => task.id === taskId);
-    if (!currentTask) return;
+    if (!currentTask) {
+        console.error('Task not found with ID:', taskId);
+        return;
+    }
 
+    console.log('Starting task:', currentTask.name);
     currentTaskName.textContent = currentTask.name;
     currentSession = currentTask.completedSessions + 1;
     totalSessions = currentTask.totalSessions;
@@ -842,14 +1018,26 @@ function getTasksForHour(hour) {
     const blocks = [];
     const dateStr = selectedDate.toDateString();
     
+    if (!tasks || tasks.length === 0) {
+        return '';
+    }
+    
     tasks.forEach(task => {
+        if (!task.sessions || !Array.isArray(task.sessions)) {
+            console.error('Task has no sessions array:', task);
+            return;
+        }
+        
         task.sessions.forEach((session, index) => {
-            // Convert session.startTime to a Date object if it's a string
-            if (typeof session.startTime === 'string') {
-                session.startTime = new Date(session.startTime);
+            // Make sure session has valid startTime
+            if (!session.startTime) {
+                console.error('Session has no startTime:', session);
+                return;
             }
             
-            const sessionDate = new Date(session.startTime);
+            // Convert session.startTime to a Date object if it's a string
+            const sessionDate = session.startTime instanceof Date ? 
+                session.startTime : new Date(session.startTime);
             
             // Check if session is on the selected day and hour
             if (sessionDate.toDateString() === dateStr && 
@@ -1008,14 +1196,26 @@ function renderWeeklyHourBlocks(date) {
     const hour = date.getHours();
     const dateStr = date.toDateString();
     
+    if (!tasks || tasks.length === 0) {
+        return '';
+    }
+    
     tasks.forEach(task => {
+        if (!task.sessions || !Array.isArray(task.sessions)) {
+            console.error('Task has no sessions array:', task);
+            return;
+        }
+        
         task.sessions.forEach((session, index) => {
-            // Convert session.startTime to a Date object if it's a string
-            if (typeof session.startTime === 'string') {
-                session.startTime = new Date(session.startTime);
+            // Make sure session has valid startTime
+            if (!session.startTime) {
+                console.error('Session has no startTime:', session);
+                return;
             }
             
-            const sessionDate = new Date(session.startTime);
+            // Convert session.startTime to a Date object if it's a string
+            const sessionDate = session.startTime instanceof Date ? 
+                session.startTime : new Date(session.startTime);
             
             // Check if session is on the selected day and hour
             if (sessionDate.toDateString() === dateStr && 
