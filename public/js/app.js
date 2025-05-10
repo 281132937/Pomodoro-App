@@ -1595,22 +1595,6 @@ function formatHour(hour) {
     return `${displayHour}:00 ${period}`;
 }
 
-// Create a test task for today (for debugging)
-function createTestTask() {
-    // Create a task for today
-    const taskName = "Test Task";
-    const dueDate = new Date();
-    dueDate.setHours(17, 0, 0, 0); // 5:00 PM today
-    const duration = 2; // 2 hours
-    
-    console.log(`Creating test task: ${taskName} due ${dueDate.toLocaleString()}`);
-    
-    const task = new Task(taskName, dueDate, duration);
-    tasks.push(task);
-    saveTasks();
-    renderTasks();
-}
-
 // Initialize
 renderTasks();
 
@@ -1638,6 +1622,19 @@ function resetAndCreateTestTasks() {
         createTestTasksForToday();
     }
 }
+
+// If no tasks exist and we're in a development environment, add a test button
+if (tasks.length === 0) {
+    console.log("No tasks found, adding test data generation button");
+    addTestDataButton();
+} else {
+    renderCalendar();
+    // Inspect existing tasks
+    inspectTasks();
+}
+
+// For development purposes only - remove in production
+// resetAndCreateTestTasks();
 
 // Add a button to the UI to generate test tasks for development purposes
 // This is safer than automatically generating test tasks

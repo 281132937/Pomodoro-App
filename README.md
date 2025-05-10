@@ -1,79 +1,201 @@
 # Pomodoro Scheduler
 
-A productivity application that uses the Pomodoro technique to help users manage their tasks and time effectively.
+A modern, full-featured productivity app that uses the Pomodoro technique to help you manage your time, tasks, and focus. Built for the web with Firebase integration, responsive design, and a beautiful user experience.
+
+---
+
+## Table of Contents
+- [Features](#features)
+- [Live Demo](#live-demo)
+- [Screenshots](#screenshots)
+- [File Structure](#file-structure)
+- [Prerequisites](#prerequisites)
+- [Setup & Installation](#setup--installation)
+- [Firebase Configuration](#firebase-configuration)
+- [Deployment](#deployment)
+- [Usage Guide](#usage-guide)
+- [Security & Best Practices](#security--best-practices)
+- [Troubleshooting](#troubleshooting)
+- [Contributing](#contributing)
+- [License](#license)
+
+---
 
 ## Features
+- **Pomodoro Timer**: 25-minute focus sessions with automatic short and long breaks
+- **Task Management**: Add, edit, delete, and schedule tasks with durations
+- **Daily & Weekly Calendar**: Visualize your tasks by hour or week, drag-and-drop to reschedule
+- **User Authentication**: Email/password and Google sign-in
+- **Cloud Sync**: Tasks are stored in Firebase Firestore and sync across devices
+- **Offline Support**: Works offline with localStorage backup
+- **Responsive Design**: Mobile-friendly, touch-optimized, and desktop-ready
+- **Theme Toggle**: Light and dark mode with persistent preference
+- **Custom 404 Page**: Friendly error page for missing routes
 
-- Task management with Pomodoro timing
-- User authentication
-- Daily and weekly task views
-- Customizable work/break sessions
-- Responsive design for desktop and mobile
-- Drag and drop task scheduling
-- Mobile-friendly touch interactions
-- Firebase Firestore database synchronization
-- Offline support with local storage backup
+---
 
-## 🆕 Recent Updates
+## Live Demo
+Deploy to your own Firebase project or run locally for testing.
 
-- **Improved Firebase Integration**: Tasks are now stored directly in the user document for better reliability
-- **Enhanced Error Handling**: Better error recovery and retry mechanisms for data saving
-- **Debugging Tools**: Added comprehensive debugging features accessible via UI button or keyboard shortcuts
-- **Touch Support**: Implemented touch-friendly drag and drop for mobile devices
-- **Local Servers**: Added multiple ways to run the application without Firebase CLI
-- **Auto-Installation**: New auto-install-run.bat script that helps set up the environment
-- **New Landing Page**: Added attractive landing page as the entry point for new users
-- **Streamlined Authentication**: Improved auth flow with automatic redirects to and from the app
+---
 
-## Quick Start
+## Screenshots
+*Add screenshots here if desired*
 
-For the easiest setup:
+---
 
-1. Double-click the `test-app.bat` file to start the PowerShell server and open the app
-2. You'll see the landing page first, then can sign in or sign up
-3. After authentication, you'll be automatically redirected to the main app
+## File Structure
+```
+public/
+  app.html           # Main app UI
+  landing.html       # Landing page (default entry)
+  login.html         # Authentication page
+  404.html           # Custom error page
+  firebase-config.js # Your Firebase credentials (DO NOT COMMIT REAL KEYS)
+  js/
+    app.js           # Main app logic
+    auth.js          # Authentication logic
+  css/
+    style.css        # Main app styles
+    landing.css      # Landing page styles
+    login.css        # Login/signup styles
+firebase.json        # Firebase Hosting config
+firestore.rules      # Firestore security rules
+firestore.indexes.json # Firestore indexes
+.gitignore           # Ignore sensitive/dev files
+```
 
-For more detailed instructions, see the [How to Run](HOW_TO_RUN.md) guide or [User Guide](USER_GUIDE.md).
+---
 
-## Setup Instructions
+## Prerequisites
+- [Node.js](https://nodejs.org/) (for local testing, not required for Firebase Hosting)
+- [Firebase CLI](https://firebase.google.com/docs/cli)
+- A [Firebase project](https://console.firebase.google.com/)
+- Modern web browser (Chrome, Firefox, Edge, Safari)
 
-### Prerequisites
+---
 
-- Node.js (v14 or later recommended) or Python 3
-- Firebase account
-- Modern web browser
+## Setup & Installation
+1. **Clone the repository**
+   ```sh
+   git clone <your-repo-url>
+   cd <project-directory>
+   ```
+2. **Install Firebase CLI** (if not already installed)
+   ```sh
+   npm install -g firebase-tools
+   ```
+3. **Login to Firebase**
+   ```sh
+   firebase login
+   ```
+4. **Initialize Firebase in your project**
+   ```sh
+   firebase init
+   # Choose Hosting and Firestore, set 'public' as the public directory
+   ```
+5. **Configure Firebase credentials**
+   - Go to your Firebase Console > Project Settings > General > Your apps
+   - Copy your web app config and paste it into `public/firebase-config.js`
+   - **Never commit your real API keys to public repos!**
 
-### Installation Options
+---
 
-#### Option 1: Using the auto-setup script
-- Run `auto-install-run.bat` to automatically install Node.js and start the server
+## Firebase Configuration
+- `public/firebase-config.js` must contain your Firebase project credentials:
+  ```js
+  const firebaseConfig = {
+    apiKey: "...",
+    authDomain: "...",
+    projectId: "...",
+    storageBucket: "...",
+    messagingSenderId: "...",
+    appId: "...",
+    measurementId: "..."
+  };
+  firebase.initializeApp(firebaseConfig);
+  if (firebase.analytics) { firebase.analytics(); }
+  ```
+- This file is **.gitignored** for security. Use a template or environment variables for production.
 
-#### Option 2: Using Node.js
-- Run `start-server.bat` if you already have Node.js installed
+---
 
-#### Option 3: Using Python
-- Run `start-python-server.bat` if you have Python installed
+## Deployment
+1. **Build and deploy to Firebase Hosting**
+   ```sh
+   firebase deploy
+   ```
+2. **Your app will be live at** `https://<your-project-id>.web.app` or `firebaseapp.com`
+3. **Routing** is handled by `firebase.json`:
+   - `/` → `landing.html`
+   - `/app` → `app.html`
+   - `/login` → `login.html`
+   - All other routes → `landing.html`
 
-### Firebase Setup
+---
 
-1. Create a new Firebase project at [Firebase Console](https://console.firebase.google.com/)
-2. Enable Authentication (Email/Password and Google Sign-in)
-3. Copy the Firebase configuration from Project Settings
-4. Create/update `public/firebase-config.js` with your Firebase credentials
+## Usage Guide
+### Landing Page
+- Welcome screen with feature highlights and call-to-action
+- Sign in or sign up to access your tasks
+
+### Authentication
+- Email/password and Google sign-in supported
+- Secure authentication via Firebase Auth
+- Redirects to main app after login
+
+### Main App (`app.html`)
+- **Sidebar**: Add new tasks (name, due date, duration)
+- **Task List**: View, start, edit, or delete tasks
+- **Timer**: Pomodoro timer with start, pause, reset, and session tracking
+- **Calendar**: Switch between daily and weekly views, drag-and-drop to reschedule
+- **Theme Toggle**: Switch between light and dark mode
+- **Mobile Support**: Responsive layout, touch drag-and-drop, mobile menu
+
+### Calendar & Scheduling
+- **Daily View**: See tasks by hour, add tasks to specific times
+- **Weekly View**: Visualize your week, drag tasks between days/hours
+- **Drag-and-Drop**: Move tasks and sessions with mouse or touch
+
+### Data Storage
+- **Cloud Sync**: All tasks are stored in Firestore under your user document
+- **Offline Support**: Tasks are backed up in localStorage and sync when online
+
+### Error Handling
+- Custom 404 page for missing routes
+- Friendly error messages for auth and data issues
+
+---
+
+## Security & Best Practices
+- **Never commit `firebase-config.js` with real API keys**
+- Use environment variables or CI/CD secrets for production
+- Firestore rules restrict access to authenticated users' own data:
+  ```
+  match /users/{userId}/{document=**} {
+    allow read, write: if request.auth != null && request.auth.uid == userId;
+  }
+  ```
+- All sensitive files are listed in `.gitignore`
+
+---
 
 ## Troubleshooting
+- **Auth Issues**: Make sure Firebase Auth is enabled (Email/Password, Google)
+- **Data Not Syncing**: Check Firestore rules and your network connection
+- **App Not Loading**: Check browser console for errors, verify Firebase config
+- **Offline Mode**: App works offline, but syncs when back online
+- **404 Errors**: Custom 404 page is shown for unknown routes
 
-If you encounter issues with the application:
+---
 
-1. Use the "Full Firebase Debug" button (bottom right corner) to run diagnostics
-2. Check the browser console (F12) for error messages
-3. Refer to the [User Guide](USER_GUIDE.md) for common solutions
+## Contributing
+Pull requests and issues are welcome! Please:
+- Open an issue for bugs or feature requests
+- Fork and submit a PR for improvements
+- Follow code style and security best practices
 
-## Security Note
-
-- Never commit `firebase-config.js` with your actual API keys
-- Use environment variables for production deployments
+---
 
 ## License
-
 [MIT License](LICENSE) 

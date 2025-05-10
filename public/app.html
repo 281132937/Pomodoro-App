@@ -120,87 +120,7 @@
     </script>
     
     <script src="js/app.js"></script>
-  
-    <!-- Debug button for troubleshooting -->
-    <script>
-      function debugFirebaseData() {
-        console.log('===== FIREBASE DEBUG =====');
-        
-        // Check if user is authenticated
-        const user = firebase.auth().currentUser;
-        if (!user) {
-          console.error('No user is signed in');
-          alert('Error: No user is signed in. Please log in first.');
-          return;
-        }
-        
-        console.log('Current user:', user.email, 'UID:', user.uid);
-        console.log('Current tasks in memory:', tasks.length, tasks);
-        
-        // Test read from Firestore
-        firebase.firestore().collection('users').doc(user.uid).collection('tasks').doc('taskList')
-          .get()
-          .then(doc => {
-            if (doc.exists) {
-              console.log('SUCCESS: Read from Firestore. Data:', doc.data());
-              alert('Successfully read tasks from Firestore. Check console for details.');
-            } else {
-              console.log('No tasks document found in Firestore.');
-              alert('No tasks found in Firestore. Creating a test task...');
-              
-              // Create a test task if none exist
-              const testDate = new Date();
-              testDate.setHours(testDate.getHours() + 1, 0, 0, 0);
-              
-              const testTask = {
-                id: 'debug-test-' + Date.now(),
-                name: 'Debug Test Task',
-                dueDate: testDate,
-                duration: 1,
-                completedSessions: 0,
-                totalSessions: 4,
-                sessions: []
-              };
-              
-              // Generate test sessions
-              let startTime = new Date();
-              startTime.setHours(startTime.getHours() + 1, 0, 0, 0);
-              
-              for (let i = 0; i < 4; i++) {
-                const sessionStart = new Date(startTime);
-                const sessionEnd = new Date(sessionStart);
-                sessionEnd.setMinutes(sessionEnd.getMinutes() + 25);
-                
-                testTask.sessions.push({
-                  id: `debug-session-${i}-${Date.now()}`,
-                  startTime: sessionStart,
-                  endTime: sessionEnd,
-                  isBreak: false,
-                  completed: false
-                });
-                
-                startTime = new Date(sessionEnd);
-                startTime.setMinutes(startTime.getMinutes() + 5);
-              }
-              
-              tasks.push(testTask);
-              saveTasks();
-              renderTasks();
-              renderCalendar();
-            }
-          })
-          .catch(error => {
-            console.error('Firestore read error:', error);
-            alert('Error reading from Firestore: ' + error.message);
-          });
-      }
-    </script>
     
-    <button onclick="debugFirebaseData()" 
-      style="position: fixed; bottom: 20px; right: 20px; padding: 10px; background: #ff6b6b; color: white; border: none; border-radius: 4px; z-index: 9999; cursor: pointer;">
-      Debug Firebase
-    </button>
-
     <script>
       // Only show debug panel in development
       document.addEventListener('DOMContentLoaded', function() {
@@ -266,30 +186,6 @@
         
         toggleMobileTheme(); // Initial check
         window.addEventListener('resize', toggleMobileTheme); // Check on resize
-      });
-    </script>
-    
-    <!-- Add this right before the closing body tag -->
-    <button id="debug-full-firebase" 
-      style="position: fixed; bottom: 70px; right: 20px; padding: 10px; background: #3871ff; color: white; border: none; border-radius: 4px; z-index: 9999; cursor: pointer;">
-      Full Firebase Debug
-    </button>
-
-    <script>
-      // Add event listener for the full debug button
-      document.addEventListener('DOMContentLoaded', function() {
-        const fullDebugBtn = document.getElementById('debug-full-firebase');
-        fullDebugBtn.addEventListener('click', function() {
-          debugFullFirebaseSystem();
-        });
-        
-        // Also enable via keyboard shortcut Ctrl+Shift+F
-        document.addEventListener('keydown', function(e) {
-          if (e.ctrlKey && e.shiftKey && e.key === 'F') {
-            debugFullFirebaseSystem();
-            console.log('Full Firebase debug triggered with keyboard shortcut');
-          }
-        });
       });
     </script>
     
