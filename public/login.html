@@ -70,9 +70,15 @@
     </div>
 
     <!-- Firebase SDK -->
+    <!-- Always load Firebase App first -->
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <!-- Then load Firebase Auth -->
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+    <!-- Load Firebase Analytics if needed -->
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-analytics-compat.js"></script>
+    <!-- Then load your configuration -->
     <script src="firebase-config.js"></script>
+    <!-- Finally load your auth code -->
     <script src="js/auth.js"></script>
 </body>
 </html> 

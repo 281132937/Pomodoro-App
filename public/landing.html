@@ -42,5 +42,21 @@
             <p>&copy; 2024 Pomodoro Scheduler. All rights reserved.</p>
         </footer>
     </div>
+
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+    <script src="firebase-config.js"></script>
+    <script>
+        // Simple auth check
+        document.addEventListener('DOMContentLoaded', function() {
+            firebase.auth().onAuthStateChanged(function(user) {
+                if (user) {
+                    // User is signed in, redirect to app
+                    window.location.href = 'index.html';
+                }
+            });
+        });
+    </script>
 </body>
 </html> 
