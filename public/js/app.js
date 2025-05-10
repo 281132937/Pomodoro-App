@@ -102,70 +102,63 @@ if (savedTheme) {
     document.body.dataset.theme = savedTheme;
 }
 
+// Time conversion helpers
+function localToUTC(localDate) {
+    // Create a new date with the exact same timestamp
+    // This preserves the local time as a UTC time
+    const d = new Date(localDate.getTime());
+    // Log for debugging
+    console.log(`Converting ${localDate.toLocaleString()} (local) → ${d.toISOString()} (UTC)`);
+    return d;
+}
+
+function utcToLocal(utcDate) {
+    // Create a new date with the exact same timestamp
+    // This preserves the UTC time as a local time
+    const d = new Date(utcDate.getTime());
+    // Log for debugging
+    console.log(`Converting ${utcDate.toISOString()} (UTC) → ${d.toLocaleString()} (local)`);
+    return d;
+}
+
 // Task Management
 class Task {
-    constructor(name, dueDate, duration) {
+    constructor(name, localDueDate, duration) {
         this.id = Date.now().toString();
         this.name = name;
         
-        // Ensure dueDate is a proper Date object
-        this.dueDate = dueDate instanceof Date ? new Date(dueDate) : new Date(dueDate);
+        // Convert local due date to UTC for storage
+        const dueDate = localDueDate instanceof Date ? localDueDate : new Date(localDueDate);
+        this.dueDate = localToUTC(dueDate);
         
         this.duration = duration;
         this.completedSessions = 0;
         this.totalSessions = Math.ceil(duration * 4); // Convert hours to pomodoro sessions
-        this.sessions = this.generateSessions();
-        
-        console.log(`Created task: ${this.name} with ${this.totalSessions} sessions`);
+        this.sessions = this.generateSessions(dueDate); // Pass local date for correct scheduling
     }
 
-    generateSessions() {
+    generateSessions(localStartDate) {
         const sessions = [];
+        let currentLocalTime = localStartDate instanceof Date ? new Date(localStartDate) : new Date();
         
-        // We'll start from now and schedule forward
-        // This ensures sessions are on the current day or future days
-        let currentTime = new Date();
-        
-        // If it's after working hours, start tomorrow
-        if (currentTime.getHours() >= WORKING_HOURS.end) {
-            currentTime.setDate(currentTime.getDate() + 1);
-            currentTime.setHours(WORKING_HOURS.start, 0, 0, 0);
-        }
-        
-        // If before working hours, start at working hours start today
-        if (currentTime.getHours() < WORKING_HOURS.start) {
-            currentTime.setHours(WORKING_HOURS.start, 0, 0, 0);
-        }
-        
-        console.log(`Generating ${this.totalSessions} sessions for task: ${this.name}`);
-        console.log(`Starting from time: ${currentTime.toLocaleString()}`);
-        
+        // Generate sessions in local time
         for (let i = 0; i < this.totalSessions; i++) {
-            // If we're outside working hours, move to next day's start
-            if (currentTime.getHours() >= WORKING_HOURS.end) {
-                currentTime.setDate(currentTime.getDate() + 1);
-                currentTime.setHours(WORKING_HOURS.start, 0, 0, 0);
-            }
+            const localStartTime = new Date(currentLocalTime.getTime());
+            const localEndTime = new Date(currentLocalTime.getTime() + POMODORO_DURATION * 1000);
             
-            // Create session with explicit Date objects
-            const startTime = new Date(currentTime.getTime());
-            const endTime = new Date(currentTime.getTime() + POMODORO_DURATION * 1000);
-            
+            // Convert and store as UTC
             const session = {
                 id: `session-${i}-${Date.now()}`,
-                startTime: startTime,
-                endTime: endTime,
+                startTime: localToUTC(localStartTime),  // Store in UTC
+                endTime: localToUTC(localEndTime),      // Store in UTC
                 isBreak: false,
                 completed: false
             };
-            
-            console.log(`Created session ${i+1} at ${startTime.toLocaleString()}`);
             sessions.push(session);
             
-            // Move time forward by one pomodoro + break
-            currentTime.setTime(currentTime.getTime() + (POMODORO_DURATION + BREAK_DURATION) * 1000);
+            // Next session starts after pomodoro + break (still in local time)
+            currentLocalTime.setTime(currentLocalTime.getTime() + (POMODORO_DURATION + BREAK_DURATION) * 1000);
         }
-        
         return sessions;
     }
 }
@@ -174,78 +167,86 @@ class Task {
 function addTaskHandler(e) {
     e.preventDefault();
     const name = document.getElementById('task-name').value;
-    const dueDate = document.getElementById('task-due-date').value;
+    const dueDateInput = document.getElementById('task-due-date');
+    const dueDateValue = dueDateInput.value;
     const duration = parseFloat(document.getElementById('task-duration').value);
 
-    console.log(`Creating task: ${name}, due: ${dueDate}, duration: ${duration}`);
+    // Get the exact local time if available from calendar selection
+    const exactLocalTimeStr = dueDateInput.dataset.exactLocalTime;
     
-    // Create the task with a unique ID
-    const task = {
-        id: 'task-' + Date.now(),
-        name: name,
-        dueDate: new Date(dueDate),
-        duration: duration,
-        completedSessions: 0,
-        totalSessions: Math.ceil(duration * 4)
-    };
+    let localDueDate;
     
-    // Generate sessions for this task
-    const sessions = [];
-    let currentTime = new Date();
-    
-    // Adjust start time based on working hours
-    if (currentTime.getHours() >= WORKING_HOURS.end) {
-        currentTime.setDate(currentTime.getDate() + 1);
-        currentTime.setHours(WORKING_HOURS.start, 0, 0, 0);
+    if (exactLocalTimeStr) {
+        // If we have an exact local time from calendar selection, use it
+        localDueDate = new Date(parseInt(exactLocalTimeStr));
+        console.log(`Using exact local time from calendar: ${localDueDate.toLocaleString()}`);
+    } 
+    else if (dueDateValue) {
+        // Otherwise parse the input as local time
+        const [datePart, timePart] = dueDateValue.split('T');
+        const [year, month, day] = datePart.split('-').map(Number);
+        const [hour, minute] = timePart.split(':').map(Number);
+        localDueDate = new Date(year, month - 1, day, hour, minute, 0, 0);
+        console.log(`Using parsed local time from input: ${localDueDate.toLocaleString()}`);
+    } else {
+        localDueDate = new Date();
+        console.log(`Using current local time: ${localDueDate.toLocaleString()}`);
     }
+
+    // Ensure we're working with the correct local hour
+    console.log(`Local due date hour: ${localDueDate.getHours()}`);
     
-    if (currentTime.getHours() < WORKING_HOURS.start) {
-        currentTime.setHours(WORKING_HOURS.start, 0, 0, 0);
+    // Prevent scheduling tasks in the past
+    const now = new Date();
+    if (localDueDate < now) {
+        showNotification('You cannot schedule a task in the past.');
+        return;
     }
+
+    // Check if adding this task would exceed 2 sessions in the selected hour (all in local time)
+    const hour = localDueDate.getHours();
+    const dateStr = localDueDate.toDateString();
+    let sessionCount = 0;
     
-    console.log(`Generating ${task.totalSessions} sessions starting from ${currentTime.toLocaleString()}`);
-    
-    // Generate sessions
-    for (let i = 0; i < task.totalSessions; i++) {
-        // Move to next day if outside working hours
-        if (currentTime.getHours() >= WORKING_HOURS.end) {
-            currentTime.setDate(currentTime.getDate() + 1);
-            currentTime.setHours(WORKING_HOURS.start, 0, 0, 0);
-        }
-        
-        const startTime = new Date(currentTime.getTime());
-        const endTime = new Date(currentTime.getTime() + POMODORO_DURATION * 1000);
-        
-        sessions.push({
-            id: `session-${i}-${Date.now()}`,
-            startTime: startTime,
-            endTime: endTime,
-            isBreak: false,
-            completed: false
+    tasks.forEach(task => {
+        if (!task.sessions) return;
+        task.sessions.forEach(session => {
+            // Convert UTC time to local for comparison
+            const localSessionDate = session.startTime instanceof Date ? 
+                utcToLocal(session.startTime) : utcToLocal(new Date(session.startTime));
+            
+            if (localSessionDate.toDateString() === dateStr && 
+                localSessionDate.getHours() === hour) {
+                sessionCount++;
+            }
         });
-        
-        // Move forward by pomodoro + break duration
-        currentTime.setTime(currentTime.getTime() + (POMODORO_DURATION + BREAK_DURATION) * 1000);
+    });
+    
+    if (sessionCount >= 2) {
+        showNotification('Maximum 2 Pomodoro blocks allowed per hour.');
+        return;
+    }
+
+    // Create the task - it will convert to UTC internally
+    console.log(`Creating new task "${name}" at local time: ${localDueDate.toLocaleString()}`);
+    const task = new Task(name, localDueDate, duration);
+    
+    // Verify the times
+    if (task.sessions && task.sessions.length > 0) {
+        const firstSession = task.sessions[0];
+        const localSessionTime = utcToLocal(firstSession.startTime);
+        console.log(`First session UTC time: ${firstSession.startTime.toISOString()}`);
+        console.log(`First session local time: ${localSessionTime.toLocaleString()} (hour ${localSessionTime.getHours()})`);
     }
     
-    // Add sessions to task
-    task.sessions = sessions;
-    
-    // Add task to tasks array
     tasks.push(task);
-    
-    // Save tasks immediately
-    console.log("Added task, saving tasks...");
     saveTasks();
-    
-    // Render UI updates
-    console.log("Rendering tasks...");
     renderTasks();
-    
-    console.log("Rendering calendar...");
     renderCalendar();
     
-    // Reset form
+    // Clear the stored data
+    dueDateInput.removeAttribute('data-exact-local-time');
+    
     taskForm.reset();
 }
 
@@ -290,47 +291,68 @@ auth.onAuthStateChanged(user => {
 function loadTasks() {
     let localTasksLoaded = false;
     
-    // First try localStorage
     try {
         const localTasks = localStorage.getItem('tasks');
         if (localTasks) {
             const parsedTasks = JSON.parse(localTasks);
-            console.log('💾 LOCAL: Loaded', parsedTasks.length, 'tasks from localStorage');
             
-            // Fix dates
             parsedTasks.forEach(task => {
                 try {
-                    if (typeof task.dueDate === 'string') {
+                    // Load due date as UTC
+                    if (typeof task.dueDate === 'number') {
                         task.dueDate = new Date(task.dueDate);
+                    } else if (typeof task.dueDate === 'string') {
+                        // Handle string cases (for backward compatibility)
+                        if (task.dueDate.includes('T')) {
+                            // ISO string
+                            task.dueDate = new Date(task.dueDate);
+                        } else {
+                            // Numeric string
+                            task.dueDate = new Date(Number(task.dueDate));
+                        }
                     } else if (!(task.dueDate instanceof Date)) {
-                        // If dueDate is neither string nor Date, create a new one
-                        console.warn('Invalid dueDate for task:', task.name);
                         task.dueDate = new Date();
                     }
                     
                     if (!task.sessions) {
                         task.sessions = [];
-                        console.warn('Task had no sessions, created empty array:', task.name);
                     }
                     
                     if (task.sessions && Array.isArray(task.sessions)) {
                         task.sessions.forEach(session => {
                             try {
-                                if (typeof session.startTime === 'string') {
+                                // Load session times as UTC
+                                if (typeof session.startTime === 'number') {
                                     session.startTime = new Date(session.startTime);
+                                } else if (typeof session.startTime === 'string') {
+                                    // Handle string cases (for backward compatibility)
+                                    if (session.startTime.includes('T')) {
+                                        // ISO string
+                                        session.startTime = new Date(session.startTime);
+                                    } else {
+                                        // Numeric string
+                                        session.startTime = new Date(Number(session.startTime));
+                                    }
                                 } else if (!(session.startTime instanceof Date)) {
                                     session.startTime = new Date();
                                 }
                                 
-                                if (typeof session.endTime === 'string') {
+                                if (typeof session.endTime === 'number') {
                                     session.endTime = new Date(session.endTime);
+                                } else if (typeof session.endTime === 'string') {
+                                    // Handle string cases (for backward compatibility)
+                                    if (session.endTime.includes('T')) {
+                                        // ISO string
+                                        session.endTime = new Date(session.endTime);
+                                    } else {
+                                        // Numeric string
+                                        session.endTime = new Date(Number(session.endTime));
+                                    }
                                 } else if (!(session.endTime instanceof Date)) {
                                     const startTime = session.startTime || new Date();
                                     session.endTime = new Date(startTime.getTime() + POMODORO_DURATION * 1000);
                                 }
                             } catch (e) {
-                                console.error('Error fixing session dates:', e);
-                                // Create default values if error
                                 const now = new Date();
                                 session.startTime = now;
                                 session.endTime = new Date(now.getTime() + POMODORO_DURATION * 1000);
@@ -389,8 +411,10 @@ function loadTasks() {
                             const newTask = { ...task };
                             
                             // Convert string to Date
-                            if (typeof task.dueDate === 'string') {
+                            if (typeof task.dueDate === 'number') {
                                 newTask.dueDate = new Date(task.dueDate);
+                            } else if (typeof task.dueDate === 'string') {
+                                newTask.dueDate = new Date(Number(task.dueDate));
                             } else if (!(task.dueDate instanceof Date)) {
                                 newTask.dueDate = new Date();
                             }
@@ -404,14 +428,18 @@ function loadTasks() {
                                     try {
                                         const newSession = { ...session };
                                         
-                                        if (typeof session.startTime === 'string') {
+                                        if (typeof session.startTime === 'number') {
                                             newSession.startTime = new Date(session.startTime);
+                                        } else if (typeof session.startTime === 'string') {
+                                            newSession.startTime = new Date(Number(session.startTime));
                                         } else if (!(session.startTime instanceof Date)) {
                                             newSession.startTime = new Date();
                                         }
                                         
-                                        if (typeof session.endTime === 'string') {
+                                        if (typeof session.endTime === 'number') {
                                             newSession.endTime = new Date(session.endTime);
+                                        } else if (typeof session.endTime === 'string') {
+                                            newSession.endTime = new Date(Number(session.endTime));
                                         } else if (!(session.endTime instanceof Date)) {
                                             const startTime = newSession.startTime || new Date();
                                             newSession.endTime = new Date(startTime.getTime() + POMODORO_DURATION * 1000);
@@ -446,7 +474,7 @@ function loadTasks() {
                     
                     // Save back to localStorage for backup
                     try {
-                        localStorage.setItem('tasks', JSON.stringify(tasks));
+    localStorage.setItem('tasks', JSON.stringify(tasks));
                     } catch (e) {
                         console.error('Failed to save tasks to localStorage after Firestore load:', e);
                     }
@@ -496,8 +524,52 @@ function loadTasks() {
 function saveTasks() {
     // Always save to localStorage as a backup
     try {
-        localStorage.setItem('tasks', JSON.stringify(tasks));
-        console.log('💾 LOCAL: Tasks saved to localStorage successfully');
+        // Save with UTC timestamps
+        const serializableTasks = tasks.map(task => {
+            // Task due date is already in UTC
+            let dueDate;
+            try {
+                dueDate = task.dueDate.getTime();
+            } catch (e) {
+                dueDate = Date.now();
+            }
+            
+            const sessions = Array.isArray(task.sessions) ? task.sessions : [];
+            
+            return {
+                id: task.id,
+                name: task.name,
+                dueDate: dueDate,  // Store the UTC timestamp
+                duration: task.duration,
+                completedSessions: task.completedSessions || 0,
+                totalSessions: task.totalSessions || 4,
+                sessions: sessions.map(session => {
+                    // Session times are already in UTC
+                    let startTime, endTime;
+                    try {
+                        startTime = session.startTime.getTime();
+                    } catch (e) {
+                        startTime = Date.now();
+                    }
+                    try {
+                        endTime = session.endTime.getTime();
+                    } catch (e) {
+                        endTime = Date.now() + 25 * 60 * 1000;
+                    }
+                    
+                    return {
+                        id: session.id,
+                        startTime: startTime,  // Store UTC timestamp
+                        endTime: endTime,      // Store UTC timestamp
+                        isBreak: !!session.isBreak,
+                        completed: !!session.completed
+                    };
+                })
+            };
+        });
+        
+        localStorage.setItem('tasks', JSON.stringify(serializableTasks));
+        console.log('💾 LOCAL: Tasks saved to localStorage successfully as UTC timestamps');
     } catch (error) {
         console.error('💾 LOCAL ERROR: Failed to save to localStorage:', error);
     }
@@ -512,98 +584,27 @@ function saveTasks() {
     console.log('🔥 FIREBASE: Number of tasks being saved:', tasks.length);
     
     try {
-        // Create a plain object version of the tasks that Firestore can handle
-        const serializableTasks = tasks.map(task => {
-            // Convert complex Date objects to simple strings
-            let dueDate;
-            try {
-                dueDate = task.dueDate.toISOString();
-            } catch (e) {
-                console.error('Error converting dueDate to ISO string:', e, task.dueDate);
-                dueDate = new Date().toISOString(); // Use current time if there's an error
-            }
-            
-            // Make sure sessions exist
-            const sessions = Array.isArray(task.sessions) ? task.sessions : [];
-            
-            return {
-                id: task.id,
-                name: task.name,
-                dueDate: dueDate,
-                duration: task.duration,
-                completedSessions: task.completedSessions || 0,
-                totalSessions: task.totalSessions || 4,
-                // Also convert session dates to strings
-                sessions: sessions.map(session => {
-                    let startTime, endTime;
-                    try {
-                        startTime = session.startTime.toISOString();
-                    } catch (e) {
-                        console.error('Error converting session.startTime:', e);
-                        startTime = new Date().toISOString();
-                    }
-                    
-                    try {
-                        endTime = session.endTime.toISOString();
-                    } catch (e) {
-                        console.error('Error converting session.endTime:', e);
-                        endTime = new Date(Date.now() + 25 * 60 * 1000).toISOString();
-                    }
-                    
-                    return {
-                        id: session.id,
-                        startTime: startTime,
-                        endTime: endTime,
-                        isBreak: !!session.isBreak,
-                        completed: !!session.completed
-                    };
-                })
-            };
-        });
-        
-        // Check if we're online before trying to save
-        if (!navigator.onLine) {
-            console.warn('🔥 FIREBASE: Device appears to be offline. Will save to Firestore when connection is restored.');
-            
-            // Add an event listener to save when we're back online
-            window.addEventListener('online', function saveWhenOnline() {
-                console.log('🔥 FIREBASE: Connection restored, attempting to save tasks now');
-                window.removeEventListener('online', saveWhenOnline);
-                saveTasks(); // Retry the save
-            }, { once: true });
-            
-            return;
-        }
-        
-        // Save directly to the main user document with a timeout
+        // Use the same serializableTasks as above
         const savePromise = firebase.firestore().collection('users').doc(currentUser.uid)
             .set({
                 tasks: serializableTasks,
                 lastUpdated: new Date().toISOString(),
                 deviceInfo: navigator.userAgent
             }, { merge: true });
-        
-        // Add a timeout to detect if the operation is taking too long
         const timeoutPromise = new Promise((_, reject) => {
             setTimeout(() => reject(new Error('Firestore operation timed out after 10 seconds')), 10000);
         });
-        
         Promise.race([savePromise, timeoutPromise])
             .then(() => {
                 console.log('🔥 FIREBASE SUCCESS: Tasks saved to Firestore successfully');
-                
-                // Verify the save immediately
                 setTimeout(() => {
                     verifyFirestoreData();
                 }, 1000);
             })
             .catch(error => {
                 console.error('🔥 FIREBASE ERROR:', error);
-                
-                // Try one more time after a short delay
                 setTimeout(() => {
                     console.log('🔥 FIREBASE: Retrying save operation after error');
-                    
                     firebase.firestore().collection('users').doc(currentUser.uid)
                         .set({
                             tasks: serializableTasks,
@@ -681,10 +682,10 @@ function renderTasks() {
                 minute: '2-digit'
             });
             
-            const taskElement = document.createElement('div');
-            taskElement.className = 'task-item';
-            taskElement.innerHTML = `
-                <h3>${task.name}</h3>
+        const taskElement = document.createElement('div');
+        taskElement.className = 'task-item';
+        taskElement.innerHTML = `
+            <h3>${task.name}</h3>
                 <div class="task-info">
                     <span class="task-info-label">Due:</span>
                     <span class="task-info-value">${formattedDate}</span>
@@ -698,13 +699,13 @@ function renderTasks() {
                         <div class="progress-fill" style="width: ${progressPercentage}%"></div>
                     </div>
                 </div>
-                <div class="task-buttons">
-                    <button onclick="startTask('${task.id}')">Start</button>
-                    <button onclick="editTask('${task.id}')">Edit</button>
-                    <button onclick="deleteTask('${task.id}')">Delete</button>
-                </div>
-            `;
-            tasksContainer.appendChild(taskElement);
+            <div class="task-buttons">
+                <button onclick="startTask('${task.id}')">Start</button>
+                <button onclick="editTask('${task.id}')">Edit</button>
+                <button onclick="deleteTask('${task.id}')">Delete</button>
+            </div>
+        `;
+        tasksContainer.appendChild(taskElement);
         } catch (error) {
             console.error(`Error rendering task ${index}:`, error);
         }
@@ -740,7 +741,7 @@ function editTask(taskId) {
         task.dueDate = new Date(taskDueDateInput.value);
         task.duration = parseFloat(taskDurationInput.value);
         task.totalSessions = Math.ceil(task.duration * 4);
-        task.sessions = task.generateSessions();
+        task.sessions = task.generateSessions(task.dueDate);
         
         saveTasks();
         renderTasks();
@@ -775,31 +776,43 @@ function deleteTask(taskId) {
 // Start Task
 function startTask(taskId) {
     if (!tasks || tasks.length === 0) {
-        console.error('No tasks available');
+        showNotification('No tasks available');
         return;
     }
-    
     currentTask = tasks.find(task => task.id === taskId);
     if (!currentTask) {
-        console.error('Task not found with ID:', taskId);
+        showNotification('Task not found');
         return;
     }
-
-    console.log('Starting task:', currentTask.name);
+    // Find the next uncompleted session
+    const nextSession = currentTask.sessions.find((session, idx) => !session.completed && idx === currentTask.completedSessions);
+    if (nextSession) {
+        const now = new Date();
+        const sessionDate = nextSession.startTime instanceof Date ? nextSession.startTime : new Date(nextSession.startTime);
+        // Only allow starting if session is scheduled for today and current hour
+        if (
+            now.toDateString() !== sessionDate.toDateString() ||
+            now.getHours() !== sessionDate.getHours()
+        ) {
+            showNotification(`This task is scheduled for ${sessionDate.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})} on ${sessionDate.toLocaleDateString()}. You can't start it now.`);
+            return;
+        }
+    }
     currentTaskName.textContent = currentTask.name;
     currentSession = currentTask.completedSessions + 1;
     totalSessions = currentTask.totalSessions;
     currentSessionDisplay.textContent = currentSession;
     totalSessionsDisplay.textContent = totalSessions;
-    
     resetTimer();
     startTimer();
 }
 
 // Timer Functions
 function startTimer() {
-    if (timer) return;
-    
+    if (timer) {
+        showNotification('Task already started');
+        return;
+    }
     timer = setInterval(() => {
         timeLeft--;
         updateTimerDisplay();
@@ -987,10 +1000,7 @@ function renderDailyCalendar() {
     calendarContent.appendChild(hoursContainer);
     
     // Generate hours from working hours range - make sure this creates enough hours
-    const hours = Array.from(
-        { length: WORKING_HOURS.end - WORKING_HOURS.start }, 
-        (_, i) => i + WORKING_HOURS.start
-    );
+    const hours = Array.from({ length: 24 }, (_, i) => i);
     
     console.log("Hours to render:", hours, "Start:", WORKING_HOURS.start, "End:", WORKING_HOURS.end);
     
@@ -1004,8 +1014,8 @@ function renderDailyCalendar() {
         return;
     }
     
-    // Render all working hours from start to end
-    for (let hour = WORKING_HOURS.start; hour < WORKING_HOURS.end; hour++) {
+    // Render all 24 hours using the hours array
+    for (let hour of hours) {
         const hourElement = document.createElement('div');
         hourElement.className = 'calendar-hour';
         hourElement.dataset.hour = hour;
@@ -1243,7 +1253,7 @@ function setupDropTarget(element) {
         const targetHour = parseInt(element.dataset.hour);
         const targetDate = new Date(element.dataset.date);
         
-        if (taskId && targetHour && targetDate) {
+        if (taskId && targetHour != null && targetDate) {
             rescheduleTask(taskId, sessionIndex, targetHour, targetDate);
         }
     });
@@ -1266,11 +1276,40 @@ function rescheduleTask(taskId, sessionIndex, targetHour, targetDate) {
         console.error('Session not found:', sessionIndex);
         return;
     }
+
+    // Check if target hour already has 2 tasks (excluding the one being moved)
+    const localDateStr = targetDate.toDateString();
+    let sessionCount = 0;
+    
+    tasks.forEach(t => {
+        if (!t.sessions) return;
+        
+        t.sessions.forEach((session, idx) => {
+            // Skip the session we're moving
+            if (t.id === taskId && idx === sessionIndex) return;
+            
+            // Convert UTC time to local for comparison
+            const localSessionDate = session.startTime instanceof Date ? 
+                utcToLocal(session.startTime) : utcToLocal(new Date(session.startTime));
+            
+            if (localSessionDate.toDateString() === localDateStr && 
+                localSessionDate.getHours() === targetHour) {
+                sessionCount++;
+            }
+        });
+    });
+    
+    if (sessionCount >= 2) {
+        showNotification('Cannot reschedule: Maximum 2 Pomodoro blocks allowed per hour.');
+        return;
+    }
     
     // Calculate time difference between original and new target time
-    const originalDate = new Date(originalSession.startTime);
-    const originalHour = originalDate.getHours();
-    const originalDay = new Date(originalDate);
+    const originalDate = originalSession.startTime instanceof Date ? 
+        originalSession.startTime : new Date(originalSession.startTime);
+    const originalLocalDate = utcToLocal(originalDate);
+    const originalHour = originalLocalDate.getHours();
+    const originalDay = new Date(originalLocalDate);
     originalDay.setHours(0, 0, 0, 0);
     
     const targetDay = new Date(targetDate);
@@ -1312,7 +1351,7 @@ function rescheduleTask(taskId, sessionIndex, targetHour, targetDate) {
 // Get tasks for a specific hour
 function getTasksForHour(hour) {
     const blocks = [];
-    const dateStr = selectedDate.toDateString();
+    const localDateStr = selectedDate.toDateString();
     
     if (!tasks || tasks.length === 0) {
         return '';
@@ -1331,12 +1370,12 @@ function getTasksForHour(hour) {
                 return;
             }
             
-            // Convert session.startTime to a Date object if it's a string
+            // Convert session.startTime from UTC to local for display
             const sessionDate = session.startTime instanceof Date ? 
-                session.startTime : new Date(session.startTime);
+                utcToLocal(session.startTime) : utcToLocal(new Date(session.startTime));
             
-            // Check if session is on the selected day and hour
-            if (sessionDate.toDateString() === dateStr && 
+            // Check if session is on the selected day and hour in local time
+            if (sessionDate.toDateString() === localDateStr && 
                 sessionDate.getHours() === hour) {
                 
                 // Check if session is completed
@@ -1407,7 +1446,7 @@ function renderWeeklyView() {
     weekGrid.appendChild(headerRow);
     
     // Create hour rows
-    for (let hour = WORKING_HOURS.start; hour < WORKING_HOURS.end; hour++) {
+    for (let hour = 0; hour < 24; hour++) {
         const hourRow = document.createElement('div');
         hourRow.className = 'week-row';
         
@@ -1488,7 +1527,7 @@ function renderWeeklyView() {
 function renderWeeklyHourBlocks(date) {
     const blocks = [];
     const hour = date.getHours();
-    const dateStr = date.toDateString();
+    const localDateStr = date.toDateString();
     
     if (!tasks || tasks.length === 0) {
         return '';
@@ -1507,12 +1546,12 @@ function renderWeeklyHourBlocks(date) {
                 return;
             }
             
-            // Convert session.startTime to a Date object if it's a string
+            // Convert session.startTime from UTC to local for display
             const sessionDate = session.startTime instanceof Date ? 
-                session.startTime : new Date(session.startTime);
+                utcToLocal(session.startTime) : utcToLocal(new Date(session.startTime));
             
             // Check if session is on the selected day and hour
-            if (sessionDate.toDateString() === dateStr && 
+            if (sessionDate.toDateString() === localDateStr && 
                 sessionDate.getHours() === hour) {
                 
                 // Check if session is completed
@@ -1540,11 +1579,11 @@ function renderWeeklyHourBlocks(date) {
             }
         });
     });
-    
+
     if (blocks.length === 0) {
         return '';
     }
-    
+
     return blocks.join('');
 }
 
@@ -1565,17 +1604,54 @@ function showNotification(message) {
 
 // Handle click on an hour to create a task
 function handleHourClick(hour, date) {
-    console.log(`Preparing to create task at hour ${hour} on ${date.toDateString()}`);
+    // Check if there are already 2 sessions in this hour
+    const localDate = new Date(date);
+    const localDateStr = localDate.toDateString();
+    let sessionCount = 0;
     
-    // Set the task form's due date to the clicked hour/date
+    tasks.forEach(task => {
+        if (!task.sessions) return;
+        task.sessions.forEach(session => {
+            // Convert UTC time to local for comparison
+            const localSessionDate = session.startTime instanceof Date ? 
+                utcToLocal(session.startTime) : utcToLocal(new Date(session.startTime));
+            
+            if (localSessionDate.toDateString() === localDateStr && 
+                localSessionDate.getHours() === hour) {
+                sessionCount++;
+            }
+        });
+    });
+    
+    if (sessionCount >= 2) {
+        showNotification('Maximum 2 Pomodoro blocks allowed per hour.');
+        return;
+    }
+
+    console.log(`Preparing to create task at hour ${hour} on ${localDate.toLocaleDateString()}`);
+    
+    // Create an exact date for this hour (in local time)
+    const exactDateTime = new Date(date);
+    exactDateTime.setHours(hour, 0, 0, 0);
+    
+    console.log(`Exact local date-time: ${exactDateTime.toLocaleString()}`);
+    console.log(`Local hour: ${exactDateTime.getHours()}`);
+
+    // Format the date for the datetime-local input (YYYY-MM-DDTHH:MM format)
+    const year = exactDateTime.getFullYear();
+    const month = String(exactDateTime.getMonth() + 1).padStart(2, '0');
+    const day = String(exactDateTime.getDate()).padStart(2, '0');
+    const hourStr = String(exactDateTime.getHours()).padStart(2, '0');
+    const minuteStr = String(exactDateTime.getMinutes()).padStart(2, '0');
+    
+    const dateTimeStr = `${year}-${month}-${day}T${hourStr}:${minuteStr}`;
+    
+    // Set the task form's due date
     const taskDueDateInput = document.getElementById('task-due-date');
+    taskDueDateInput.value = dateTimeStr;
     
-    // Format the date for the datetime-local input
-    const taskDate = new Date(date);
-    taskDate.setHours(hour, 0, 0, 0);
-    const dateStr = taskDate.toISOString().slice(0, 16);
-    
-    taskDueDateInput.value = dateStr;
+    // Store the exact local date/time
+    taskDueDateInput.dataset.exactLocalTime = exactDateTime.getTime().toString();
     
     // Set a default name based on the time
     const taskNameInput = document.getElementById('task-name');
@@ -1587,7 +1663,7 @@ function handleHourClick(hour, date) {
     
     // Focus the form
     taskNameInput.focus();
-    taskNameInput.select(); // Select the text so user can immediately type over it
+    taskNameInput.select();
     
     // If on mobile, open the sidebar
     if (window.innerWidth <= 768) {
@@ -1638,7 +1714,7 @@ if (tasks.length === 0) {
     console.log("No tasks found, adding test data generation button");
     addTestDataButton();
 } else {
-    renderCalendar();
+renderCalendar(); 
     // Inspect existing tasks
     inspectTasks();
 }
@@ -1859,4 +1935,62 @@ function debugFullFirebaseSystem() {
             console.error('🔥 FIREBASE DEBUG ERROR:', error);
             alert('Firebase test failed: ' + error.message);
         });
-} 
+}
+
+// Always show the next upcoming task in the main section
+function showUpcomingTask() {
+    // Find the next session across all tasks
+    let nextTask = null;
+    let nextSessionTime = null;
+    tasks.forEach(task => {
+        const nextSession = task.sessions.find((session, idx) => !session.completed && idx === task.completedSessions);
+        if (nextSession) {
+            const sessionDate = nextSession.startTime instanceof Date ? nextSession.startTime : new Date(nextSession.startTime);
+            if (!nextSessionTime || sessionDate < nextSessionTime) {
+                nextSessionTime = sessionDate;
+                nextTask = task;
+            }
+        }
+    });
+    if (nextTask) {
+        currentTask = nextTask;
+        currentTaskName.textContent = nextTask.name;
+        currentSession = nextTask.completedSessions + 1;
+        totalSessions = nextTask.totalSessions;
+        currentSessionDisplay.textContent = currentSession;
+        totalSessionsDisplay.textContent = totalSessions;
+    } else {
+        currentTask = null;
+        currentTaskName.textContent = 'No task selected';
+        currentSessionDisplay.textContent = '1';
+        totalSessionsDisplay.textContent = '4';
+    }
+}
+
+// Call showUpcomingTask on load and after tasks change
+renderTasks = (function(orig) {
+    return function() {
+        orig.apply(this, arguments);
+        showUpcomingTask();
+    };
+}(renderTasks));
+
+// Free timer option
+const freeTimerBtn = document.createElement('button');
+freeTimerBtn.textContent = 'Start Free Timer';
+freeTimerBtn.style.marginLeft = '1rem';
+freeTimerBtn.style.background = '#4ecdc4';
+freeTimerBtn.style.color = 'white';
+freeTimerBtn.style.border = 'none';
+freeTimerBtn.style.borderRadius = '8px';
+freeTimerBtn.style.padding = '0.8rem 1.5rem';
+freeTimerBtn.style.cursor = 'pointer';
+freeTimerBtn.addEventListener('click', () => {
+    currentTask = null;
+    currentTaskName.textContent = 'Free Timer';
+    currentSessionDisplay.textContent = '1';
+    totalSessionsDisplay.textContent = '1';
+    resetTimer();
+    startTimer();
+});
+document.querySelector('.timer-controls').appendChild(freeTimerBtn); 
