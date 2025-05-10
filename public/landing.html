@@ -5,41 +5,94 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Pomodoro Scheduler - Welcome</title>
     <link rel="stylesheet" href="css/landing.css">
+    <!-- Preload the app for faster transitions -->
+    <link rel="prefetch" href="app.html">
+    <link rel="prefetch" href="login.html">
 </head>
 <body>
     <div class="landing-container">
         <nav class="navbar">
             <div class="logo">Pomodoro Scheduler</div>
-            <button class="sign-in-btn" onclick="window.location.href='login.html'">Sign In</button>
+            <div class="nav-buttons">
+                <button class="sign-in-btn" onclick="window.location.href='login.html'">Sign In</button>
+                <button class="get-started-btn" onclick="window.location.href='login.html#signup'">Get Started</button>
+            </div>
         </nav>
 
         <main class="hero">
             <div class="hero-content">
-                <h1>Boost Your Productivity</h1>
-                <p>Organize your tasks, track your progress, and achieve more with our Pomodoro technique scheduler.</p>
+                <h1>Master Your Time, Achieve More</h1>
+                <p class="hero-subtitle">The ultimate Pomodoro timer app that helps you stay focused, organized, and productive.</p>
+                
                 <div class="features">
                     <div class="feature">
                         <span class="icon">⏱️</span>
-                        <h3>Smart Scheduling</h3>
-                        <p>Automatically split tasks into 25-minute focused sessions</p>
+                        <h3>Focus Timer</h3>
+                        <p>25-minute focused work sessions with automatic breaks</p>
                     </div>
                     <div class="feature">
                         <span class="icon">📊</span>
-                        <h3>Progress Tracking</h3>
-                        <p>Monitor your productivity and task completion</p>
+                        <h3>Task Management</h3>
+                        <p>Organize tasks and track completion with visual progress</p>
                     </div>
                     <div class="feature">
-                        <span class="icon">🔔</span>
-                        <h3>Smart Notifications</h3>
-                        <p>Get timely reminders for sessions and breaks</p>
+                        <span class="icon">📅</span>
+                        <h3>Visual Calendar</h3>
+                        <p>See your day or week at a glance with intuitive scheduling</p>
+                    </div>
+                    <div class="feature">
+                        <span class="icon">☁️</span>
+                        <h3>Cloud Sync</h3>
+                        <p>Your data syncs across devices with secure Firebase storage</p>
                     </div>
                 </div>
-                <button class="cta-button" onclick="window.location.href='login.html'">Get Started</button>
+                
+                <div class="cta-section">
+                    <button class="cta-button" onclick="window.location.href='login.html#signup'">Start Free Now</button>
+                    <p class="no-account">Already have an account? <a href="login.html">Sign In</a></p>
+                </div>
+            </div>
+            
+            <div class="hero-image">
+                <div class="app-preview">
+                    <img src="https://placehold.co/600x400/ff6b6b/fff?text=Pomodoro+App" alt="Pomodoro App Preview">
+                </div>
             </div>
         </main>
 
+        <section class="how-it-works">
+            <h2>How Pomodoro Technique Works</h2>
+            <div class="steps">
+                <div class="step">
+                    <div class="step-number">1</div>
+                    <h3>Choose a Task</h3>
+                    <p>Select what you want to work on and add it to your schedule</p>
+                </div>
+                <div class="step">
+                    <div class="step-number">2</div>
+                    <h3>Focus for 25 Minutes</h3>
+                    <p>Commit to 25 minutes of focused, uninterrupted work</p>
+                </div>
+                <div class="step">
+                    <div class="step-number">3</div>
+                    <h3>Take a Break</h3>
+                    <p>Enjoy a 5-minute break to refresh your mind</p>
+                </div>
+                <div class="step">
+                    <div class="step-number">4</div>
+                    <h3>Track Progress</h3>
+                    <p>See your productivity improve as you complete tasks</p>
+                </div>
+            </div>
+        </section>
+
         <footer>
             <p>&copy; 2024 Pomodoro Scheduler. All rights reserved.</p>
+            <div class="footer-links">
+                <a href="#">Privacy Policy</a>
+                <a href="#">Terms of Service</a>
+                <a href="#">Support</a>
+            </div>
         </footer>
     </div>
 
@@ -48,14 +101,27 @@
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
     <script src="firebase-config.js"></script>
     <script>
-        // Simple auth check
+        // Redirect to app if user is already signed in
         document.addEventListener('DOMContentLoaded', function() {
+            // Hide everything initially to prevent layout flashing
+            document.body.style.opacity = '0';
+            
             firebase.auth().onAuthStateChanged(function(user) {
                 if (user) {
                     // User is signed in, redirect to app
+                    console.log("User is signed in, redirecting to app...");
                     window.location.href = 'app.html';
+                } else {
+                    // No user signed in, show the landing page content
+                    console.log("No user signed in, showing landing page");
+                    document.body.style.opacity = '1';
                 }
             });
+            
+            // Show the page after a timeout in case Firebase is slow
+            setTimeout(function() {
+                document.body.style.opacity = '1';
+            }, 500);
         });
     </script>
 </body>

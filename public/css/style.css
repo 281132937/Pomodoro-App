@@ -55,8 +55,12 @@ body {
     margin-bottom: 2rem;
 }
 
+/* Improved Theme Toggle Styles */
 .theme-toggle {
     position: relative;
+    display: flex;
+    align-items: center;
+    margin-left: 15px;
 }
 
 .theme-toggle input {
@@ -66,11 +70,51 @@ body {
 .theme-toggle label {
     cursor: pointer;
     font-size: 1.5rem;
-    transition: transform 0.3s ease;
+    transition: all 0.3s ease;
+    width: 50px;
+    height: 26px;
+    background-color: #e3e3e3;
+    border-radius: 30px;
+    position: relative;
+    display: flex;
+    align-items: center;
+    padding: 0 5px;
+    box-shadow: inset 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.theme-toggle label:before {
+    content: "🌙";
+    position: absolute;
+    right: 7px;
+    font-size: 14px;
+}
+
+.theme-toggle label:after {
+    content: "☀️";
+    position: absolute;
+    left: 7px;
+    font-size: 14px;
 }
 
 .theme-toggle input:checked + label {
-    transform: rotate(180deg);
+    background-color: #3a3a3a;
+}
+
+.theme-toggle .toggle-handle {
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    width: 20px;
+    height: 20px;
+    background-color: white;
+    border-radius: 50%;
+    transition: all 0.3s ease;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    z-index: 1;
+}
+
+.theme-toggle input:checked + label .toggle-handle {
+    transform: translateX(24px);
 }
 
 /* Task Form Styles */
@@ -700,6 +744,36 @@ body {
         font-size: 0.7rem;
         padding: 0.15rem 0.25rem;
     }
+
+    .sidebar-header {
+        position: relative;
+        flex-wrap: wrap;
+    }
+    
+    .theme-toggle {
+        position: absolute;
+        top: 10px;
+        right: 10px;
+        margin-left: 0;
+    }
+    
+    .mobile-theme-toggle {
+        position: fixed;
+        top: 1rem;
+        left: 1rem;
+        z-index: 1002;
+        display: flex;
+        align-items: center;
+        background: var(--card-bg);
+        border-radius: 30px;
+        padding: 3px;
+        box-shadow: 0 2px 5px var(--shadow-color);
+    }
+    
+    .mobile-theme-toggle .theme-toggle {
+        position: static;
+        margin: 0;
+    }
 }
 
 /* Small Mobile Devices */
@@ -990,4 +1064,77 @@ body {
     border-radius: 8px;
     margin: 1rem 0;
     font-style: italic;
+}
+
+/* Drag handle and touch interactions */
+.drag-handle {
+    position: absolute;
+    top: 5px;
+    right: 5px;
+    width: 20px;
+    height: 20px;
+    border-radius: 3px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.7);
+    cursor: grab;
+    opacity: 0.6;
+    transition: all 0.2s ease;
+    background-color: rgba(0, 0, 0, 0.15);
+    z-index: 2;
+}
+
+.drag-handle:hover {
+    opacity: 1;
+    background-color: rgba(0, 0, 0, 0.25);
+}
+
+/* Highlight the pomodoro block when dragging */
+.pomodoro-block.dragging, 
+.pomodoro-block.touch-dragging {
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+    z-index: 1000;
+}
+
+/* Style for drop targets when dragging over */
+.hour-block.drop-target-hover {
+    background-color: rgba(79, 195, 247, 0.2);
+    outline: 2px dashed #4fc3f7;
+}
+
+/* Make sure draggable items show the correct cursor */
+[draggable="true"] {
+    cursor: grab;
+}
+
+/* Add touch-specific indicators */
+@media (hover: none) and (pointer: coarse) {
+    /* Larger drag handle on touch devices */
+    .drag-handle {
+        top: 8px;
+        right: 8px;
+        width: 24px;
+        height: 24px;
+        font-size: 14px;
+    }
+    
+    /* Add instruction tooltip for touch devices */
+    .calendar-container::before {
+        content: "Long press task to drag & schedule";
+        display: block;
+        text-align: center;
+        padding: 5px;
+        background-color: rgba(0, 0, 0, 0.05);
+        border-radius: 4px;
+        margin-bottom: 10px;
+        font-size: 12px;
+    }
+    
+    /* Enlarge clickable areas for better touch */
+    .pomodoro-block {
+        min-height: 40px;
+        padding: 8px 30px 8px 8px;
+    }
 } 

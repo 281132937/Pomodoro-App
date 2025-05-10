@@ -7,6 +7,20 @@ const showLoginLink = document.getElementById('show-login');
 const loginCard = document.querySelector('.login-card');
 const signupCard = document.getElementById('signup-card');
 
+// Helper function for redirects
+function redirectToApp() {
+    // Always redirect to app.html after successful auth
+    window.location.href = 'app.html';
+}
+
+function redirectToLogin() {
+    window.location.href = 'login.html';
+}
+
+function redirectToLanding() {
+    window.location.href = 'landing.html';
+}
+
 // Toggle between login and signup forms
 showSignupLink.addEventListener('click', (e) => {
     e.preventDefault();
@@ -29,7 +43,7 @@ loginForm.addEventListener('submit', async (e) => {
     try {
         const userCredential = await firebase.auth().signInWithEmailAndPassword(email, password);
         // Redirect to main app
-        window.location.href = 'app.html';
+        redirectToApp();
     } catch (error) {
         alert(error.message);
     }
@@ -50,7 +64,7 @@ signupForm.addEventListener('submit', async (e) => {
     try {
         const userCredential = await firebase.auth().createUserWithEmailAndPassword(email, password);
         // Redirect to main app
-        window.location.href = 'app.html';
+        redirectToApp();
     } catch (error) {
         alert(error.message);
     }
@@ -62,7 +76,7 @@ googleSignInBtn.addEventListener('click', async () => {
     try {
         const result = await firebase.auth().signInWithPopup(provider);
         // Redirect to main app
-        window.location.href = 'app.html';
+        redirectToApp();
     } catch (error) {
         alert(error.message);
     }
@@ -72,14 +86,17 @@ googleSignInBtn.addEventListener('click', async () => {
 firebase.auth().onAuthStateChanged((user) => {
     if (user) {
         // User is signed in
-        if (window.location.pathname.includes('login.html')) {
-            window.location.href = 'app.html';
+        if (window.location.pathname.includes('login.html') || 
+            window.location.pathname === '/login') {
+            redirectToApp();
         }
     } else {
         // User is signed out
-        if (!window.location.pathname.includes('login.html') && 
-            !window.location.pathname.includes('landing.html')) {
-            window.location.href = 'landing.html';
+        if ((!window.location.pathname.includes('login.html') && 
+             !window.location.pathname.includes('landing.html') &&
+             window.location.pathname !== '/' &&
+             window.location.pathname !== '/login')) {
+            redirectToLanding();
         }
     }
 }); 

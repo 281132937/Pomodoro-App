@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Deploy Instructions</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        h1 {
+            color: #ff6b6b;
+        }
+        h2 {
+            color: #4ecdc4;
+            margin-top: 30px;
+        }
+        pre {
+            background: #f5f5f5;
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+        }
+        .step {
+            margin-bottom: 30px;
+            padding: 20px;
+            border: 1px solid #eee;
+            border-radius: 5px;
+        }
+        img {
+            max-width: 100%;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            margin: 15px 0;
+        }
+        .note {
+            background: #fff3cd;
+            padding: 10px;
+            border-left: 4px solid #ffc107;
+            margin: 15px 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>Deploy Your Pomodoro App to Firebase</h1>
+    
+    <div class="note">
+        <strong>Note:</strong> Since you're having issues with the Firebase CLI, here's how to deploy manually through the Firebase Console.
+    </div>
+    
+    <div class="step">
+        <h2>Step 1: Log into Firebase Console</h2>
+        <ol>
+            <li>Go to <a href="https://console.firebase.google.com/" target="_blank">https://console.firebase.google.com/</a></li>
+            <li>Sign in with the Google account you used to create your Firebase project</li>
+            <li>Select your Pomodoro project</li>
+        </ol>
+    </div>
+    
+    <div class="step">
+        <h2>Step 2: Upload Your Files</h2>
+        <ol>
+            <li>In the left sidebar, click on "Hosting"</li>
+            <li>You'll see your deployed site and options</li>
+            <li>Scroll down to find the manual deployment section or "Deploy" button</li>
+            <li>Click "Get started" or "Deploy" to begin the process</li>
+            <li>Follow the instructions to upload your files:
+                <ul>
+                    <li>Zip your entire "public" folder (not just the contents, but the folder itself)</li>
+                    <li>Upload this zip file when prompted</li>
+                </ul>
+            </li>
+        </ol>
+    </div>
+    
+    <div class="step">
+        <h2>Step 3: Configure Your Files</h2>
+        <ol>
+            <li>After uploading, you may need to set your public directory as "public"</li>
+            <li>Make sure to add your rewrite rules (these should be automatically applied from your firebase.json file)</li>
+            <li>Set your index file as "landing.html"</li>
+        </ol>
+    </div>
+    
+    <div class="step">
+        <h2>Step 4: Deploy</h2>
+        <ol>
+            <li>Click "Deploy" or "Publish" to finalize</li>
+            <li>Wait for the deployment to complete</li>
+            <li>Visit your app at your Firebase Hosting URL (usually yourprojectname.web.app)</li>
+        </ol>
+    </div>
+    
+    <div class="step">
+        <h2>Step 5: Testing Your Deployed App</h2>
+        <ol>
+            <li>Go to your app URL</li>
+            <li>Sign in with your account</li>
+            <li>To enable the debug panel, press <strong>Ctrl+Shift+D</strong> on your keyboard</li>
+            <li>Click the "Debug Firebase" button to test your connection</li>
+            <li>Click the "Create Test Task" button to create a test task</li>
+        </ol>
+    </div>
+    
+    <div class="note">
+        <strong>Important:</strong> If you still have issues after deploying, add <code>?debug=true</code> to the end of your app URL to enable the debug panel automatically.
+    </div>
+    
+    <h2>Changes Made to Fix Your Issues</h2>
+    <p>Here's what we updated to fix the Firebase issues:</p>
+    <ol>
+        <li>Changed Firestore path structure to store tasks directly in the user document</li>
+        <li>Added Firestore timestamp handling for dates</li>
+        <li>Improved error handling and added localStorage backup</li>
+        <li>Added debug tools with keyboard shortcut (Ctrl+Shift+D)</li>
+        <li>Updated Firebase security rules to allow proper access</li>
+    </ol>
+</body>
+</html> 

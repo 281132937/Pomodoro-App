@@ -223,6 +223,7 @@ function addTaskHandler(e) {
     tasks.push(task);
     
     // Save tasks immediately
+    console.log("Added task, saving tasks...");
     saveTasks();
     
     // Render UI updates
@@ -248,9 +249,21 @@ auth.onAuthStateChanged(user => {
         console.log('No user logged in, redirecting to login page');
         currentUser = null;
         
+        // Helper function for redirects
+        function redirectToLogin() {
+            // For Firebase hosting
+            if (window.location.hostname.includes('firebaseapp.com') || 
+                window.location.hostname.includes('web.app')) {
+                window.location.href = '/login';
+            } else {
+                // For local testing
+                window.location.href = 'login.html';
+            }
+        }
+        
         // Redirect to login page if not on a local file system
         if (window.location.protocol !== 'file:') {
-            window.location.href = 'login.html';
+            redirectToLogin();
         } else {
             // For local testing, use localStorage
             console.log('Running locally, using localStorage instead of redirecting');
@@ -263,124 +276,205 @@ auth.onAuthStateChanged(user => {
 
 // Load Tasks from Firestore or localStorage
 function loadTasks() {
+    let localTasksLoaded = false;
+    
+    // First try localStorage
+    try {
+        const localTasks = localStorage.getItem('tasks');
+        if (localTasks) {
+            const parsedTasks = JSON.parse(localTasks);
+            console.log('💾 LOCAL: Loaded', parsedTasks.length, 'tasks from localStorage');
+            
+            // Fix dates
+            parsedTasks.forEach(task => {
+                try {
+                    if (typeof task.dueDate === 'string') {
+                        task.dueDate = new Date(task.dueDate);
+                    } else if (!(task.dueDate instanceof Date)) {
+                        // If dueDate is neither string nor Date, create a new one
+                        console.warn('Invalid dueDate for task:', task.name);
+                        task.dueDate = new Date();
+                    }
+                    
+                    if (!task.sessions) {
+                        task.sessions = [];
+                        console.warn('Task had no sessions, created empty array:', task.name);
+                    }
+                    
+                    if (task.sessions && Array.isArray(task.sessions)) {
+                        task.sessions.forEach(session => {
+                            try {
+                                if (typeof session.startTime === 'string') {
+                                    session.startTime = new Date(session.startTime);
+                                } else if (!(session.startTime instanceof Date)) {
+                                    session.startTime = new Date();
+                                }
+                                
+                                if (typeof session.endTime === 'string') {
+                                    session.endTime = new Date(session.endTime);
+                                } else if (!(session.endTime instanceof Date)) {
+                                    const startTime = session.startTime || new Date();
+                                    session.endTime = new Date(startTime.getTime() + POMODORO_DURATION * 1000);
+                                }
+                            } catch (e) {
+                                console.error('Error fixing session dates:', e);
+                                // Create default values if error
+                                const now = new Date();
+                                session.startTime = now;
+                                session.endTime = new Date(now.getTime() + POMODORO_DURATION * 1000);
+                            }
+                        });
+                    }
+                } catch (e) {
+                    console.error('Error processing task from localStorage:', e, task);
+                }
+            });
+            
+            tasks = parsedTasks;
+            localTasksLoaded = true;
+        }
+    } catch (e) {
+        console.error('Failed to load from localStorage:', e);
+    }
+    
+    // If not online, just use localStorage and render
+    if (!navigator.onLine) {
+        console.warn('Device appears to be offline. Using localStorage tasks only.');
+        renderTasks();
+        renderCalendar();
+        return;
+    }
+    
     if (currentUser) {
+        // Set a timeout to fail gracefully if Firestore is slow or failing
+        const timeoutPromise = new Promise((_, reject) => {
+            setTimeout(() => {
+                reject(new Error('Firestore load operation timed out after 5 seconds'));
+            }, 5000);
+        });
+        
         // Load from Firestore
         console.log('🔥 FIREBASE: Attempting to load tasks from Firestore for user:', currentUser.uid);
         
-        db.collection('users').doc(currentUser.uid).collection('tasks').doc('taskList')
+        // Get the user document
+        const firestorePromise = firebase.firestore().collection('users').doc(currentUser.uid)
             .get()
             .then(doc => {
                 if (doc.exists && doc.data().tasks && Array.isArray(doc.data().tasks)) {
-                    // Get the tasks from Firestore
-                    const rawTasks = doc.data().tasks;
-                    console.log('🔥 FIREBASE SUCCESS: Found', rawTasks.length, 'tasks in Firestore');
+                    const firestoreTasks = doc.data().tasks;
+                    console.log('🔥 FIREBASE SUCCESS: Found', firestoreTasks.length, 'tasks in Firestore');
                     
-                    // Fix dates in loaded tasks
-                    tasks = rawTasks.map(task => {
-                        // Convert string dates back to Date objects
-                        if (typeof task.dueDate === 'string') {
-                            task.dueDate = new Date(task.dueDate);
-                        }
-                        
-                        // Convert session dates
-                        if (task.sessions && Array.isArray(task.sessions)) {
-                            task.sessions = task.sessions.map(session => {
-                                if (typeof session.startTime === 'string') {
-                                    session.startTime = new Date(session.startTime);
-                                }
-                                if (typeof session.endTime === 'string') {
-                                    session.endTime = new Date(session.endTime);
-                                }
-                                return session;
-                            });
-                        }
-                        
-                        return task;
-                    });
+                    if (firestoreTasks.length === 0 && localTasksLoaded && tasks.length > 0) {
+                        console.log('🔥 FIREBASE: Firestore has 0 tasks but localStorage has tasks, keeping localStorage tasks');
+                        // Keep using the localStorage tasks, they might not have been saved to Firestore yet
+                        return;
+                    }
                     
-                    console.log('🔥 FIREBASE: Tasks processed and ready for use:', tasks.length);
+                    // Convert dates from strings to Date objects
+                    const processedTasks = firestoreTasks.map(task => {
+                        try {
+                            // Create a new task object
+                            const newTask = { ...task };
+                            
+                            // Convert string to Date
+                            if (typeof task.dueDate === 'string') {
+                                newTask.dueDate = new Date(task.dueDate);
+                            } else if (!(task.dueDate instanceof Date)) {
+                                newTask.dueDate = new Date();
+                            }
+                            
+                            // Initialize sessions if it doesn't exist
+                            if (!task.sessions || !Array.isArray(task.sessions)) {
+                                newTask.sessions = [];
+                            } else {
+                                // Convert session dates
+                                newTask.sessions = task.sessions.map(session => {
+                                    try {
+                                        const newSession = { ...session };
+                                        
+                                        if (typeof session.startTime === 'string') {
+                                            newSession.startTime = new Date(session.startTime);
+                                        } else if (!(session.startTime instanceof Date)) {
+                                            newSession.startTime = new Date();
+                                        }
+                                        
+                                        if (typeof session.endTime === 'string') {
+                                            newSession.endTime = new Date(session.endTime);
+                                        } else if (!(session.endTime instanceof Date)) {
+                                            const startTime = newSession.startTime || new Date();
+                                            newSession.endTime = new Date(startTime.getTime() + POMODORO_DURATION * 1000);
+                                        }
+                                        
+                                        return newSession;
+                                    } catch (e) {
+                                        console.error('Error processing session from Firestore:', e, session);
+                                        // Return a default session if conversion fails
+                                        const now = new Date();
+                                        return {
+                                            id: 'recovery-session-' + Date.now(),
+                                            startTime: now,
+                                            endTime: new Date(now.getTime() + POMODORO_DURATION * 1000),
+                                            isBreak: false,
+                                            completed: false
+                                        };
+                                    }
+                                });
+                            }
+                            
+                            return newTask;
+                        } catch (e) {
+                            console.error('Error processing task from Firestore:', e, task);
+                            // Skip invalid tasks
+                            return null;
+                        }
+                    }).filter(Boolean); // Remove any null tasks that failed processing
+                    
+                    // Override localStorage data with Firestore data
+                    tasks = processedTasks;
+                    
+                    // Save back to localStorage for backup
+                    try {
+                        localStorage.setItem('tasks', JSON.stringify(tasks));
+                    } catch (e) {
+                        console.error('Failed to save tasks to localStorage after Firestore load:', e);
+                    }
                 } else {
-                    console.log('🔥 FIREBASE: No valid tasks found in Firestore, starting with empty array');
-                    tasks = [];
+                    console.log('🔥 FIREBASE: No tasks found in Firestore');
+                    
+                    // If we already have tasks from localStorage, sync them to Firestore
+                    if (localTasksLoaded && tasks.length > 0) {
+                        console.log('🔥 FIREBASE: Syncing localStorage tasks to Firestore');
+                        saveTasks();
+                    }
                 }
                 
-                // Render the UI with the loaded tasks
+                // Render UI
                 renderTasks();
                 renderCalendar();
             })
             .catch(error => {
-                console.error('🔥 FIREBASE ERROR: Error loading tasks from Firestore:', error);
+                console.error('🔥 FIREBASE ERROR loading tasks:', error);
+                console.log('Using localStorage tasks instead');
                 
-                // Fall back to localStorage
-                console.log('💾 LOCAL: Falling back to localStorage due to Firestore error');
-                const storedTasks = localStorage.getItem('tasks');
-                
-                if (storedTasks) {
-                    try {
-                        tasks = JSON.parse(storedTasks);
-                        
-                        // Fix dates
-                        tasks.forEach(task => {
-                            if (typeof task.dueDate === 'string') {
-                                task.dueDate = new Date(task.dueDate);
-                            }
-                            
-                            if (task.sessions) {
-                                task.sessions.forEach(session => {
-                                    if (typeof session.startTime === 'string') {
-                                        session.startTime = new Date(session.startTime);
-                                    }
-                                    if (typeof session.endTime === 'string') {
-                                        session.endTime = new Date(session.endTime);
-                                    }
-                                });
-                            }
-                        });
-                    } catch (e) {
-                        console.error('Error parsing tasks from localStorage:', e);
-                        tasks = [];
-                    }
-                } else {
-                    tasks = [];
-                }
-                
+                // Already loaded from localStorage above
                 renderTasks();
                 renderCalendar();
             });
-    } else {
-        // Load from localStorage
-        console.log('💾 LOCAL: Loading from localStorage (not signed in)');
-        const storedTasks = localStorage.getItem('tasks');
         
-        if (storedTasks) {
-            try {
-                tasks = JSON.parse(storedTasks);
+        // Race between Firebase and timeout
+        Promise.race([firestorePromise, timeoutPromise])
+            .catch(error => {
+                console.error('🔥 FIREBASE LOAD TIMEOUT:', error);
+                console.log('Firebase load timed out, using localStorage tasks instead');
                 
-                // Fix dates
-                tasks.forEach(task => {
-                    if (typeof task.dueDate === 'string') {
-                        task.dueDate = new Date(task.dueDate);
-                    }
-                    
-                    if (task.sessions) {
-                        task.sessions.forEach(session => {
-                            if (typeof session.startTime === 'string') {
-                                session.startTime = new Date(session.startTime);
-                            }
-                            if (typeof session.endTime === 'string') {
-                                session.endTime = new Date(session.endTime);
-                            }
-                        });
-                    }
-                });
-            } catch (e) {
-                console.error('Error parsing tasks from localStorage:', e);
-                tasks = [];
-            }
-        } else {
-            tasks = [];
-        }
-        
+                // Render what we have from localStorage if we loaded something
+                if (localTasksLoaded) {
+                    renderTasks();
+                    renderCalendar();
+                }
+            });
+    } else {
+        // Just render what we have from localStorage
         renderTasks();
         renderCalendar();
     }
@@ -388,58 +482,136 @@ function loadTasks() {
 
 // Save Tasks to Firestore or localStorage
 function saveTasks() {
-    if (currentUser) {
-        // Save to Firestore
-        console.log('🔥 FIREBASE: Attempting to save tasks to Firestore for user:', currentUser.uid);
-        console.log('🔥 FIREBASE: Number of tasks being saved:', tasks.length);
-        
-        try {
-            // Create a deep clone of the tasks array to avoid reference issues
-            const serializableTasks = JSON.parse(JSON.stringify(tasks));
-            
-            // Convert Date objects to strings for Firestore
-            serializableTasks.forEach(task => {
-                if (task.dueDate instanceof Date) {
-                    task.dueDate = task.dueDate.toISOString();
-                }
-                
-                if (task.sessions && Array.isArray(task.sessions)) {
-                    task.sessions.forEach(session => {
-                        if (session.startTime instanceof Date) {
-                            session.startTime = session.startTime.toISOString();
-                        }
-                        if (session.endTime instanceof Date) {
-                            session.endTime = session.endTime.toISOString();
-                        }
-                    });
-                }
-            });
-            
-            console.log('Saving serialized tasks:', serializableTasks);
-            
-            // Use set with merge to preserve other fields if they exist
-            const userDocRef = db.collection('users').doc(currentUser.uid);
-            userDocRef.collection('tasks').doc('taskList')
-                .set({ 
-                    tasks: serializableTasks,
-                    lastUpdated: firebase.firestore.FieldValue.serverTimestamp()
-                })
-                .then(() => {
-                    console.log('🔥 FIREBASE SUCCESS: Tasks saved to Firestore successfully');
-                })
-                .catch(error => {
-                    console.error('🔥 FIREBASE ERROR: Error saving tasks to Firestore:', error);
-                    // Fallback to localStorage
-                    localStorage.setItem('tasks', JSON.stringify(tasks));
-                });
-        } catch (error) {
-            console.error('Error preparing tasks for Firestore:', error);
-            localStorage.setItem('tasks', JSON.stringify(tasks));
-        }
-    } else {
-        // Save to localStorage if not signed in
-        console.log('💾 LOCAL: Saving to localStorage (not signed in)');
+    // Always save to localStorage as a backup
+    try {
         localStorage.setItem('tasks', JSON.stringify(tasks));
+        console.log('💾 LOCAL: Tasks saved to localStorage successfully');
+    } catch (error) {
+        console.error('💾 LOCAL ERROR: Failed to save to localStorage:', error);
+    }
+    
+    if (!currentUser) {
+        console.warn('🔥 FIREBASE: No user logged in, skipping Firestore save');
+        return;
+    }
+    
+    // Save to Firestore
+    console.log('🔥 FIREBASE: Attempting to save tasks to Firestore for user:', currentUser.uid);
+    console.log('🔥 FIREBASE: Number of tasks being saved:', tasks.length);
+    
+    try {
+        // Create a plain object version of the tasks that Firestore can handle
+        const serializableTasks = tasks.map(task => {
+            // Convert complex Date objects to simple strings
+            let dueDate;
+            try {
+                dueDate = task.dueDate.toISOString();
+            } catch (e) {
+                console.error('Error converting dueDate to ISO string:', e, task.dueDate);
+                dueDate = new Date().toISOString(); // Use current time if there's an error
+            }
+            
+            // Make sure sessions exist
+            const sessions = Array.isArray(task.sessions) ? task.sessions : [];
+            
+            return {
+                id: task.id,
+                name: task.name,
+                dueDate: dueDate,
+                duration: task.duration,
+                completedSessions: task.completedSessions || 0,
+                totalSessions: task.totalSessions || 4,
+                // Also convert session dates to strings
+                sessions: sessions.map(session => {
+                    let startTime, endTime;
+                    try {
+                        startTime = session.startTime.toISOString();
+                    } catch (e) {
+                        console.error('Error converting session.startTime:', e);
+                        startTime = new Date().toISOString();
+                    }
+                    
+                    try {
+                        endTime = session.endTime.toISOString();
+                    } catch (e) {
+                        console.error('Error converting session.endTime:', e);
+                        endTime = new Date(Date.now() + 25 * 60 * 1000).toISOString();
+                    }
+                    
+                    return {
+                        id: session.id,
+                        startTime: startTime,
+                        endTime: endTime,
+                        isBreak: !!session.isBreak,
+                        completed: !!session.completed
+                    };
+                })
+            };
+        });
+        
+        // Check if we're online before trying to save
+        if (!navigator.onLine) {
+            console.warn('🔥 FIREBASE: Device appears to be offline. Will save to Firestore when connection is restored.');
+            
+            // Add an event listener to save when we're back online
+            window.addEventListener('online', function saveWhenOnline() {
+                console.log('🔥 FIREBASE: Connection restored, attempting to save tasks now');
+                window.removeEventListener('online', saveWhenOnline);
+                saveTasks(); // Retry the save
+            }, { once: true });
+            
+            return;
+        }
+        
+        // Save directly to the main user document with a timeout
+        const savePromise = firebase.firestore().collection('users').doc(currentUser.uid)
+            .set({
+                tasks: serializableTasks,
+                lastUpdated: new Date().toISOString(),
+                deviceInfo: navigator.userAgent
+            }, { merge: true });
+        
+        // Add a timeout to detect if the operation is taking too long
+        const timeoutPromise = new Promise((_, reject) => {
+            setTimeout(() => reject(new Error('Firestore operation timed out after 10 seconds')), 10000);
+        });
+        
+        Promise.race([savePromise, timeoutPromise])
+            .then(() => {
+                console.log('🔥 FIREBASE SUCCESS: Tasks saved to Firestore successfully');
+                
+                // Verify the save immediately
+                setTimeout(() => {
+                    verifyFirestoreData();
+                }, 1000);
+            })
+            .catch(error => {
+                console.error('🔥 FIREBASE ERROR:', error);
+                
+                // Try one more time after a short delay
+                setTimeout(() => {
+                    console.log('🔥 FIREBASE: Retrying save operation after error');
+                    
+                    firebase.firestore().collection('users').doc(currentUser.uid)
+                        .set({
+                            tasks: serializableTasks,
+                            lastUpdated: new Date().toISOString(),
+                            retryInfo: {
+                                timestamp: new Date().toISOString(),
+                                originalError: error.message
+                            }
+                        }, { merge: true })
+                        .then(() => {
+                            console.log('🔥 FIREBASE SUCCESS: Tasks saved on retry');
+                        })
+                        .catch(retryError => {
+                            console.error('🔥 FIREBASE ERROR ON RETRY:', retryError);
+                            alert('Error saving tasks to Firebase. Your tasks have been saved locally as a backup.');
+                        });
+                }, 2000);
+            });
+    } catch (error) {
+        console.error('Error preparing tasks for Firestore:', error);
     }
 }
 
@@ -449,15 +621,19 @@ function verifyFirestoreData() {
     
     console.log('🔥 FIREBASE: Verifying saved data in Firestore...');
     
-    db.collection('users').doc(currentUser.uid).collection('tasks').doc('taskList')
+    // Check the main user document where tasks are stored
+    db.collection('users').doc(currentUser.uid)
         .get()
         .then(doc => {
-            if (doc.exists) {
+            if (doc.exists && doc.data().tasks) {
                 const firestoreTasks = doc.data().tasks || [];
                 console.log('🔥 FIREBASE VERIFICATION: Found', firestoreTasks.length, 'tasks in Firestore');
                 console.log('🔥 FIREBASE VERIFICATION: First task:', firestoreTasks[0]?.name || 'No tasks');
             } else {
-                console.log('🔥 FIREBASE VERIFICATION: No data found in Firestore!');
+                console.log('🔥 FIREBASE VERIFICATION: No tasks found in user document!', doc.exists ? 'Document exists' : 'Document does not exist');
+                if (doc.exists) {
+                    console.log('🔥 FIREBASE VERIFICATION: Document data:', JSON.stringify(doc.data()));
+                }
             }
         })
         .catch(error => {
@@ -897,6 +1073,114 @@ let draggedElement = null;
 let isDragging = false;
 
 function setupDragAndDrop(element) {
+    // Add a visual drag handle for better usability
+    const dragHandle = document.createElement('div');
+    dragHandle.className = 'drag-handle';
+    dragHandle.innerHTML = '⋮⋮';
+    dragHandle.title = 'Drag to reschedule';
+    element.appendChild(dragHandle);
+    
+    // Setup touch events for mobile
+    let touchStartX, touchStartY;
+    
+    element.addEventListener('touchstart', (e) => {
+        touchStartX = e.touches[0].clientX;
+        touchStartY = e.touches[0].clientY;
+        
+        // Add a timeout to distinguish between tap and long press
+        element.touchTimeout = setTimeout(() => {
+            console.log('Long press detected - starting drag mode');
+            element.classList.add('touch-dragging');
+            element.setAttribute('aria-grabbed', 'true');
+            
+            // Show visual feedback
+            element.style.opacity = '0.6';
+            element.style.transform = 'scale(1.05)';
+            
+            // Store original position for calculation
+            element.touchOriginalTop = element.offsetTop;
+            element.touchOriginalLeft = element.offsetLeft;
+        }, 500); // 500ms long press to start dragging
+    }, { passive: false });
+    
+    element.addEventListener('touchmove', (e) => {
+        if (!element.classList.contains('touch-dragging')) return;
+        
+        // Prevent scrolling while dragging
+        e.preventDefault();
+        
+        const touchX = e.touches[0].clientX;
+        const touchY = e.touches[0].clientY;
+        
+        // Calculate the distance moved
+        const deltaX = touchX - touchStartX;
+        const deltaY = touchY - touchStartY;
+        
+        // Update element position
+        element.style.position = 'absolute';
+        element.style.top = `${element.touchOriginalTop + deltaY}px`;
+        element.style.left = `${element.touchOriginalLeft + deltaX}px`;
+        element.style.zIndex = '1000';
+        
+        // Find potential drop targets
+        const elementsUnderTouch = document.elementsFromPoint(touchX, touchY);
+        const dropTarget = elementsUnderTouch.find(el => el.classList.contains('hour-block'));
+        
+        // Highlight potential drop target
+        document.querySelectorAll('.drop-target-hover').forEach(el => {
+            el.classList.remove('drop-target-hover');
+        });
+        
+        if (dropTarget) {
+            dropTarget.classList.add('drop-target-hover');
+        }
+    }, { passive: false });
+    
+    element.addEventListener('touchend', (e) => {
+        // Clear the timeout to prevent drag mode
+        clearTimeout(element.touchTimeout);
+        
+        // If we're in drag mode
+        if (element.classList.contains('touch-dragging')) {
+            const touchX = e.changedTouches[0].clientX;
+            const touchY = e.changedTouches[0].clientY;
+            
+            // Find the drop target
+            const elementsUnderTouch = document.elementsFromPoint(touchX, touchY);
+            const dropTarget = elementsUnderTouch.find(el => el.classList.contains('hour-block'));
+            
+            if (dropTarget) {
+                // Get the task ID and session index from the dragged element
+                const taskId = element.dataset.taskId;
+                const sessionIndex = parseInt(element.dataset.sessionIndex);
+                
+                // Get the target hour and date
+                const targetHour = parseInt(dropTarget.dataset.hour);
+                const targetDate = new Date(dropTarget.dataset.date);
+                
+                if (taskId && targetHour && targetDate) {
+                    rescheduleTask(taskId, sessionIndex, targetHour, targetDate);
+                }
+            }
+            
+            // Reset element styles
+            element.style.position = '';
+            element.style.top = '';
+            element.style.left = '';
+            element.style.zIndex = '';
+            element.style.opacity = '';
+            element.style.transform = '';
+            element.classList.remove('touch-dragging');
+            element.setAttribute('aria-grabbed', 'false');
+            
+            // Remove all drop target highlights
+            document.querySelectorAll('.drop-target-hover').forEach(el => {
+                el.classList.remove('drop-target-hover');
+            });
+        }
+    }, { passive: false });
+    
+    // Regular mouse drag and drop
     element.addEventListener('dragstart', (e) => {
         isDragging = true;
         draggedElement = element;
@@ -916,7 +1200,7 @@ function setupDragAndDrop(element) {
         isDragging = false;
         draggedElement = null;
         element.classList.remove('dragging');
-        element.style.opacity = '0.8';
+        element.style.opacity = '';
         
         // Remove all drop target highlights
         document.querySelectorAll('.drop-target-hover').forEach(el => {
@@ -1453,4 +1737,119 @@ document.addEventListener('DOMContentLoaded', function() {
         debugButton.addEventListener('click', debugFirebaseConnection);
         container.appendChild(debugButton);
     }
-}); 
+});
+
+// Add this function near the end of the file
+function debugFullFirebaseSystem() {
+    console.log('===== FULL FIREBASE SYSTEM DEBUG =====');
+    
+    // Check if Firebase is initialized
+    if (!firebase.app) {
+        console.error('Firebase not initialized!');
+        alert('Firebase not initialized! Check console for details.');
+        return;
+    }
+    
+    // Check authentication
+    const user = firebase.auth().currentUser;
+    if (!user) {
+        console.error('No user is signed in');
+        alert('Error: No user is signed in. Please log in first.');
+        return;
+    }
+    
+    console.log('Current user:', user.email, 'UID:', user.uid);
+    console.log('Current local tasks:', tasks.length, tasks);
+    
+    // First, try to connect with a simple write/read to test connectivity
+    const testDocRef = firebase.firestore().collection('_connectionTest').doc(user.uid);
+    const testData = { 
+        timestamp: new Date().toISOString(),
+        browser: navigator.userAgent,
+        test: 'Connection Test' 
+    };
+    
+    console.log('🔥 STEP 1: Testing basic Firestore connectivity...');
+    
+    testDocRef.set(testData)
+        .then(() => {
+            console.log('🔥 STEP 1 SUCCESS: Write to test document completed');
+            
+            // Read back the test document
+            return testDocRef.get();
+        })
+        .then((doc) => {
+            if (doc.exists) {
+                console.log('🔥 STEP 1 SUCCESS: Test document read successfully', doc.data());
+                
+                // Proceed to step 2 - retrieve user document
+                console.log('🔥 STEP 2: Reading user document...');
+                return firebase.firestore().collection('users').doc(user.uid).get();
+            } else {
+                throw new Error('Test document not found after writing!');
+            }
+        })
+        .then((doc) => {
+            console.log('🔥 STEP 2 SUCCESS: User document read status:', doc.exists ? 'EXISTS' : 'DOES NOT EXIST');
+            if (doc.exists) {
+                console.log('User document data:', doc.data());
+                
+                if (doc.data().tasks) {
+                    console.log('Tasks found in user document:', doc.data().tasks.length);
+                } else {
+                    console.log('No tasks array found in user document');
+                }
+            }
+            
+            // Proceed to step 3 - attempt to write a test task
+            console.log('🔥 STEP 3: Attempting to write a test task...');
+            
+            // Create a test task
+            const testTask = {
+                id: 'debug-test-' + Date.now(),
+                name: 'Firebase Debug Test Task',
+                dueDate: new Date().toISOString(),
+                duration: 1,
+                completedSessions: 0,
+                totalSessions: 4,
+                sessions: [{
+                    id: 'test-session-' + Date.now(),
+                    startTime: new Date().toISOString(),
+                    endTime: new Date(Date.now() + 25 * 60 * 1000).toISOString(),
+                    isBreak: false,
+                    completed: false
+                }]
+            };
+            
+            return firebase.firestore().collection('users').doc(user.uid)
+                .set({
+                    tasks: [testTask],
+                    lastUpdated: new Date().toISOString(),
+                    debugInfo: {
+                        timestamp: new Date().toISOString(),
+                        browser: navigator.userAgent
+                    }
+                }, { merge: true });
+        })
+        .then(() => {
+            console.log('🔥 STEP 3 SUCCESS: Test task written successfully');
+            
+            // Verify the write
+            console.log('🔥 STEP 4: Verifying test task was saved...');
+            return firebase.firestore().collection('users').doc(user.uid).get();
+        })
+        .then((doc) => {
+            if (doc.exists && doc.data().tasks) {
+                console.log('🔥 STEP 4 SUCCESS: User document read after test task write:', doc.data().tasks.length, 'tasks found');
+                console.log('Tasks data:', JSON.stringify(doc.data().tasks));
+                alert('Firebase debugging completed successfully! Check the console for detailed results.');
+            } else {
+                console.error('🔥 STEP 4 FAILURE: Task write verification failed', doc.exists);
+                alert('Firebase test completed with errors. Check console for details.');
+            }
+        })
+        .catch((error) => {
+            console.error('🔥 FIREBASE DEBUG ERROR:', error);
+            alert('Firebase test failed: ' + error.message);
+        });
+} 

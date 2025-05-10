@@ -3,13 +3,65 @@
   <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta http-equiv="refresh" content="0;url=landing.html">
-    <title>Redirecting...</title>
+    <title>Pomodoro Scheduler</title>
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+    <script src="firebase-config.js"></script>
+    <style>
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: 100vh;
+        background-color: #f7f7f7;
+        margin: 0;
+      }
+      .loading {
+        text-align: center;
+      }
+      .spinner {
+        border: 4px solid rgba(0, 0, 0, 0.1);
+        border-radius: 50%;
+        border-top: 4px solid #ff6b6b;
+        width: 40px;
+        height: 40px;
+        margin: 0 auto 20px;
+        animation: spin 1s linear infinite;
+      }
+      @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+      }
+    </style>
   </head>
   <body>
-    <p>Redirecting to the Pomodoro Scheduler landing page...</p>
+    <div class="loading">
+      <div class="spinner"></div>
+      <p>Loading Pomodoro Scheduler...</p>
+    </div>
+
     <script>
-      window.location.href = 'landing.html';
+      document.addEventListener('DOMContentLoaded', function() {
+        // Initialize Firebase
+        if (typeof firebase !== 'undefined') {
+          // Check if user is already signed in
+          firebase.auth().onAuthStateChanged(function(user) {
+            if (user) {
+              // User is signed in, redirect to app
+              window.location.href = 'app.html';
+            } else {
+              // No user is signed in, redirect to landing page
+              window.location.href = 'landing.html';
+            }
+          });
+        } else {
+          // Firebase isn't loaded properly, redirect to landing page
+          console.error('Firebase not initialized correctly');
+          window.location.href = 'landing.html';
+        }
+      });
     </script>
   </body>
 </html>

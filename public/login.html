@@ -80,5 +80,24 @@
     <script src="firebase-config.js"></script>
     <!-- Finally load your auth code -->
     <script src="js/auth.js"></script>
+
+    <!-- JavaScript to handle signup form display -->
+    <script>
+        // Check if URL contains #signup hash and show signup form
+        function checkUrlForSignup() {
+            if (window.location.hash === '#signup') {
+                loginCard.style.display = 'none';
+                signupCard.style.display = 'block';
+            }
+        }
+
+        // Run on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            checkUrlForSignup();
+        });
+
+        // Also check when the URL changes (browser back/forward)
+        window.addEventListener('hashchange', checkUrlForSignup);
+    </script>
 </body>
 </html> 

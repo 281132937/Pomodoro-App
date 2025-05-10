@@ -8,6 +8,17 @@
   </head>
   <body>
     <button class="mobile-menu-toggle" id="mobile-menu-toggle">☰</button>
+    
+    <!-- Mobile Theme Toggle (Outside the sidebar so it's always visible on mobile) -->
+    <div class="mobile-theme-toggle" id="mobile-theme-toggle">
+      <div class="theme-toggle">
+        <input type="checkbox" id="mobile-theme-switch">
+        <label for="mobile-theme-switch">
+          <div class="toggle-handle"></div>
+        </label>
+      </div>
+    </div>
+    
     <div class="app-container">
       <!-- Sidebar -->
       <aside class="sidebar">
@@ -15,7 +26,9 @@
           <h1>Pomodoro Scheduler</h1>
           <div class="theme-toggle">
             <input type="checkbox" id="theme-switch">
-            <label for="theme-switch">🌙</label>
+            <label for="theme-switch">
+              <div class="toggle-handle"></div>
+            </label>
           </div>
         </div>
         
@@ -76,6 +89,36 @@
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-analytics-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
     <script src="firebase-config.js"></script>
+    
+    <!-- Auth check first - before loading the app -->
+    <script>
+      // Check if user is logged in before loading the app
+      document.addEventListener('DOMContentLoaded', function() {
+        // Hide everything initially
+        document.body.style.display = 'none';
+        
+        firebase.auth().onAuthStateChanged(function(user) {
+          if (user) {
+            // User is signed in, show the app
+            document.body.style.display = '';
+            console.log("User authenticated:", user.email);
+          } else {
+            // No user is signed in, redirect to landing page
+            console.log("No user authenticated, redirecting to landing page");
+            window.location.href = 'landing.html';
+          }
+        });
+        
+        // Fallback in case auth check takes too long
+        setTimeout(function() {
+          if (document.body.style.display === 'none') {
+            console.log("Auth check timeout, redirecting to landing page");
+            window.location.href = 'landing.html';
+          }
+        }, 5000);
+      });
+    </script>
+    
     <script src="js/app.js"></script>
   
     <!-- Debug button for troubleshooting -->
@@ -157,5 +200,98 @@
       style="position: fixed; bottom: 20px; right: 20px; padding: 10px; background: #ff6b6b; color: white; border: none; border-radius: 4px; z-index: 9999; cursor: pointer;">
       Debug Firebase
     </button>
+
+    <script>
+      // Only show debug panel in development
+      document.addEventListener('DOMContentLoaded', function() {
+        const debugPanel = document.getElementById('debug-panel');
+        const isProduction = 
+          window.location.hostname.includes('firebaseapp.com') || 
+          window.location.hostname.includes('web.app');
+        
+        // Hide in production unless there's a debug flag in URL
+        if (isProduction && !window.location.search.includes('debug=true')) {
+          debugPanel.style.display = 'none';
+        }
+      });
+      
+      // Add a keyboard shortcut to enable debug panel (Ctrl+Shift+D)
+      document.addEventListener('keydown', function(e) {
+        // Check for Ctrl+Shift+D
+        if (e.ctrlKey && e.shiftKey && e.key === 'D') {
+          const debugPanel = document.getElementById('debug-panel');
+          if (debugPanel) {
+            debugPanel.style.display = debugPanel.style.display === 'none' ? 'flex' : 'none';
+            console.log('Debug panel toggled with keyboard shortcut');
+          }
+        }
+      });
+      
+      // Sync the two theme toggles
+      document.addEventListener('DOMContentLoaded', function() {
+        const desktopThemeSwitch = document.getElementById('theme-switch');
+        const mobileThemeSwitch = document.getElementById('mobile-theme-switch');
+        const mobileThemeToggle = document.getElementById('mobile-theme-toggle');
+        
+        // Initialize from localStorage
+        const savedTheme = localStorage.getItem('theme');
+        if (savedTheme) {
+          desktopThemeSwitch.checked = savedTheme === 'dark';
+          mobileThemeSwitch.checked = savedTheme === 'dark';
+          document.body.dataset.theme = savedTheme;
+        }
+        
+        // Sync desktop to mobile
+        desktopThemeSwitch.addEventListener('change', function() {
+          mobileThemeSwitch.checked = this.checked;
+          document.body.dataset.theme = this.checked ? 'dark' : 'light';
+          localStorage.setItem('theme', this.checked ? 'dark' : 'light');
+        });
+        
+        // Sync mobile to desktop
+        mobileThemeSwitch.addEventListener('change', function() {
+          desktopThemeSwitch.checked = this.checked;
+          document.body.dataset.theme = this.checked ? 'dark' : 'light';
+          localStorage.setItem('theme', this.checked ? 'dark' : 'light');
+        });
+        
+        // Hide mobile toggle on larger screens
+        function toggleMobileTheme() {
+          if (window.innerWidth > 768) {
+            mobileThemeToggle.style.display = 'none';
+          } else {
+            mobileThemeToggle.style.display = 'flex';
+          }
+        }
+        
+        toggleMobileTheme(); // Initial check
+        window.addEventListener('resize', toggleMobileTheme); // Check on resize
+      });
+    </script>
+    
+    <!-- Add this right before the closing body tag -->
+    <button id="debug-full-firebase" 
+      style="position: fixed; bottom: 70px; right: 20px; padding: 10px; background: #3871ff; color: white; border: none; border-radius: 4px; z-index: 9999; cursor: pointer;">
+      Full Firebase Debug
+    </button>
+
+    <script>
+      // Add event listener for the full debug button
+      document.addEventListener('DOMContentLoaded', function() {
+        const fullDebugBtn = document.getElementById('debug-full-firebase');
+        fullDebugBtn.addEventListener('click', function() {
+          debugFullFirebaseSystem();
+        });
+        
+        // Also enable via keyboard shortcut Ctrl+Shift+F
+        document.addEventListener('keydown', function(e) {
+          if (e.ctrlKey && e.shiftKey && e.key === 'F') {
+            debugFullFirebaseSystem();
+            console.log('Full Firebase debug triggered with keyboard shortcut');
+          }
+        });
+      });
+    </script>
+    
   </body>
 </html> 
