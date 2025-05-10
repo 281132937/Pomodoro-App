@@ -39,6 +39,7 @@ const currentTaskName = document.getElementById('current-task-name');
 const currentSessionDisplay = document.getElementById('current-session');
 const totalSessionsDisplay = document.getElementById('total-sessions');
 const themeSwitch = document.getElementById('theme-switch');
+const mobileThemeSwitch = document.getElementById('mobile-theme-switch');
 const viewToggleButtons = document.querySelectorAll('.view-toggle button');
 
 // Mobile Menu Toggle
@@ -77,16 +78,27 @@ sidebar.addEventListener('transitionend', () => {
     }
 });
 
-// Theme Toggle
-themeSwitch.addEventListener('change', () => {
-    document.body.dataset.theme = themeSwitch.checked ? 'dark' : 'light';
-    localStorage.setItem('theme', themeSwitch.checked ? 'dark' : 'light');
-});
+// Theme Toggle (desktop and mobile)
+function setTheme(isDark) {
+    document.body.dataset.theme = isDark ? 'dark' : 'light';
+    localStorage.setItem('theme', isDark ? 'dark' : 'light');
+    if (themeSwitch) themeSwitch.checked = isDark;
+    if (mobileThemeSwitch) mobileThemeSwitch.checked = isDark;
+}
+
+if (themeSwitch) {
+    themeSwitch.addEventListener('change', () => setTheme(themeSwitch.checked));
+}
+if (mobileThemeSwitch) {
+    mobileThemeSwitch.addEventListener('change', () => setTheme(mobileThemeSwitch.checked));
+}
 
 // Load saved theme
 const savedTheme = localStorage.getItem('theme');
 if (savedTheme) {
-    themeSwitch.checked = savedTheme === 'dark';
+    const isDark = savedTheme === 'dark';
+    if (themeSwitch) themeSwitch.checked = isDark;
+    if (mobileThemeSwitch) mobileThemeSwitch.checked = isDark;
     document.body.dataset.theme = savedTheme;
 }
 
