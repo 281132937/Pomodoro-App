@@ -3,78 +3,13 @@
   <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Pomodoro Scheduler</title>
-    <link rel="stylesheet" href="css/style.css">
+    <meta http-equiv="refresh" content="0;url=landing.html">
+    <title>Redirecting...</title>
   </head>
   <body>
-    <button class="mobile-menu-toggle" id="mobile-menu-toggle">☰</button>
-    <div class="app-container">
-      <!-- Sidebar -->
-      <aside class="sidebar">
-        <div class="sidebar-header">
-          <h1>Pomodoro Scheduler</h1>
-          <div class="theme-toggle">
-            <input type="checkbox" id="theme-switch">
-            <label for="theme-switch">🌙</label>
-          </div>
-        </div>
-        
-        <!-- Task Form -->
-        <form id="task-form" class="task-form">
-          <input type="text" id="task-name" placeholder="Task name" required>
-          <input type="datetime-local" id="task-due-date" required>
-          <input type="number" id="task-duration" placeholder="Duration (hours)" min="0.5" step="0.5" required>
-          <button type="submit">Add Task</button>
-        </form>
-
-        <!-- Task List -->
-        <div class="task-list">
-          <h2>Tasks</h2>
-          <div id="tasks-container"></div>
-        </div>
-      </aside>
-
-      <!-- Main Content -->
-      <main class="main-content">
-        <!-- Timer Section -->
-        <div class="timer-section">
-          <div class="current-task">
-            <h3>Current Task</h3>
-            <p id="current-task-name">No task selected</p>
-          </div>
-          <div class="timer">
-            <div class="timer-display">
-              <span id="minutes">25</span>:<span id="seconds">00</span>
-            </div>
-            <div class="timer-controls">
-              <button id="start-timer">Start</button>
-              <button id="pause-timer">Pause</button>
-              <button id="reset-timer">Reset</button>
-            </div>
-            <div class="session-progress">
-              <p>Session <span id="current-session">1</span> of <span id="total-sessions">4</span></p>
-            </div>
-          </div>
-        </div>
-
-        <!-- View Toggle -->
-        <div class="view-toggle">
-          <button class="active" data-view="daily">Daily</button>
-          <button data-view="weekly">Weekly</button>
-        </div>
-
-        <!-- Calendar View -->
-        <div class="calendar-container">
-          <div id="calendar"></div>
-        </div>
-      </main>
-    </div>
-     
-    <!-- Firebase SDK - use same versions as login page for consistency -->
-    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-analytics-compat.js"></script>
-    <script src="firebase-config.js"></script>
-    <script src="js/app.js"></script>
+    <p>Redirecting to the Pomodoro Scheduler landing page...</p>
+    <script>
+      window.location.href = 'landing.html';
+    </script>
   </body>
 </html>

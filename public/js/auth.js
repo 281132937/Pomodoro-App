@@ -29,7 +29,7 @@ loginForm.addEventListener('submit', async (e) => {
     try {
         const userCredential = await firebase.auth().signInWithEmailAndPassword(email, password);
         // Redirect to main app
-        window.location.href = 'index.html';
+        window.location.href = 'app.html';
     } catch (error) {
         alert(error.message);
     }
@@ -50,7 +50,7 @@ signupForm.addEventListener('submit', async (e) => {
     try {
         const userCredential = await firebase.auth().createUserWithEmailAndPassword(email, password);
         // Redirect to main app
-        window.location.href = 'index.html';
+        window.location.href = 'app.html';
     } catch (error) {
         alert(error.message);
     }
@@ -62,7 +62,7 @@ googleSignInBtn.addEventListener('click', async () => {
     try {
         const result = await firebase.auth().signInWithPopup(provider);
         // Redirect to main app
-        window.location.href = 'index.html';
+        window.location.href = 'app.html';
     } catch (error) {
         alert(error.message);
     }
@@ -73,7 +73,7 @@ firebase.auth().onAuthStateChanged((user) => {
     if (user) {
         // User is signed in
         if (window.location.pathname.includes('login.html')) {
-            window.location.href = 'index.html';
+            window.location.href = 'app.html';
         }
     } else {
         // User is signed out
