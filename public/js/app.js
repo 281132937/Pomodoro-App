@@ -1348,17 +1348,15 @@ function getTasksForHour(hour) {
                 // Only non-completed tasks can be dragged
                 const draggableAttr = !isCompleted ? 'draggable="true"' : '';
                 
-                // Add a play icon to indicate clickable
+                // Add a play icon to indicate clickable (on the left of the task name)
                 const playIcon = !isCompleted ? '<span class="play-icon">▶</span>' : '';
-                
                 blocks.push(`
                     <div class="pomodoro-block ${completionClass}" 
                          data-task-id="${task.id}"
                          data-session-index="${index}"
                          ${draggableAttr}
                          title="${task.name} - ${isCompleted ? 'Completed' : 'Click to start, drag to reschedule'}">
-                        ${playIcon}
-                        ${task.name.substring(0, 15)}${task.name.length > 15 ? '...' : ''}
+                        ${playIcon}${task.name.substring(0, 15)}${task.name.length > 15 ? '...' : ''}
                     </div>
                 `);
             }
