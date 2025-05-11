@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -8,7 +8,15 @@
 </head>
 <body>
     <div class="login-container">
-        <div class="login-card">
+        <a href="landing.html" class="back-to-home">Back to Home</a>
+        <div class="theme-toggle">
+            <input type="checkbox" id="theme-toggle-login">
+            <label for="theme-toggle-login">
+                <span class="toggle-handle"></span>
+            </label>
+        </div>
+
+        <div class="login-card" id="login-card">
             <div class="login-header">
                 <h1>Welcome Back</h1>
                 <p>Sign in to continue to Pomodoro Scheduler</p>
@@ -81,23 +89,75 @@
     <!-- Finally load your auth code -->
     <script src="js/auth.js"></script>
 
-    <!-- JavaScript to handle signup form display -->
+    <!-- JavaScript to handle signup form display and theme toggle -->
     <script>
+        // Run on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            // Theme toggle functionality
+            const themeToggle = document.getElementById('theme-toggle-login');
+            
+            // Check if user has a saved theme preference
+            const savedTheme = localStorage.getItem('theme') || 'dark';
+            document.documentElement.setAttribute('data-theme', savedTheme);
+            
+            // Set the toggle to match the current theme
+            if (savedTheme === 'dark') {
+                themeToggle.checked = true;
+            }
+            
+            // Listen for toggle changes
+            themeToggle.addEventListener('change', function() {
+                if (this.checked) {
+                    document.documentElement.setAttribute('data-theme', 'dark');
+                    localStorage.setItem('theme', 'dark');
+                } else {
+                    document.documentElement.setAttribute('data-theme', 'light');
+                    localStorage.setItem('theme', 'light');
+                }
+            });
+
+            // Sign up/login form toggle
+            const loginCard = document.getElementById('login-card');
+            const signupCard = document.getElementById('signup-card');
+            const showSignup = document.getElementById('show-signup');
+            const showLogin = document.getElementById('show-login');
+            
+            showSignup.addEventListener('click', function(e) {
+                e.preventDefault();
+                loginCard.style.display = 'none';
+                signupCard.style.display = 'block';
+                window.location.hash = 'signup';
+            });
+            
+            showLogin.addEventListener('click', function(e) {
+                e.preventDefault();
+                signupCard.style.display = 'none';
+                loginCard.style.display = 'block';
+                window.location.hash = '';
+            });
+
+            // Check if URL contains #signup hash and show signup form
+            checkUrlForSignup();
+        });
+
         // Check if URL contains #signup hash and show signup form
         function checkUrlForSignup() {
+            const loginCard = document.getElementById('login-card');
+            const signupCard = document.getElementById('signup-card');
             if (window.location.hash === '#signup') {
                 loginCard.style.display = 'none';
                 signupCard.style.display = 'block';
             }
         }
 
-        // Run on page load
-        document.addEventListener('DOMContentLoaded', function() {
-            checkUrlForSignup();
-        });
-
         // Also check when the URL changes (browser back/forward)
         window.addEventListener('hashchange', checkUrlForSignup);
+        
+        // Initialize theme on page load before DOM content loaded
+        (function() {
+            const savedTheme = localStorage.getItem('theme') || 'dark';
+            document.documentElement.setAttribute('data-theme', savedTheme);
+        })();
     </script>
 </body>
 </html> 

@@ -33,14 +33,164 @@ const calendar = document.getElementById('calendar');
 const minutesDisplay = document.getElementById('minutes');
 const secondsDisplay = document.getElementById('seconds');
 const startTimerBtn = document.getElementById('start-timer');
-const pauseTimerBtn = document.getElementById('pause-timer');
 const resetTimerBtn = document.getElementById('reset-timer');
+const skipTimerBtn = document.getElementById('skip-timer');
 const currentTaskName = document.getElementById('current-task-name');
 const currentSessionDisplay = document.getElementById('current-session');
 const totalSessionsDisplay = document.getElementById('total-sessions');
 const themeSwitch = document.getElementById('theme-switch');
 const mobileThemeSwitch = document.getElementById('mobile-theme-switch');
 const viewToggleButtons = document.querySelectorAll('.view-toggle button');
+const progressSteps = document.querySelectorAll('.progress-step');
+const progressCompletedLabel = document.querySelector('.progress-labels span:first-child');
+const progressRemainingLabel = document.querySelector('.progress-labels span:last-child');
+
+// Add event listeners for page visibility changes to save/restore timer state
+document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') {
+        // Page is hidden (user switched tabs or navigated away)
+        saveTimerState();
+    } else {
+        // Page is visible again
+        restoreTimerState();
+    }
+});
+
+// Save state when page is unloaded or navigated away from
+window.addEventListener('beforeunload', saveTimerState);
+window.addEventListener('pagehide', saveTimerState);
+
+// Save timer state in sessionStorage as well for cross-page persistence
+function saveTimerState() {
+    // Save timer state regardless of whether timer is active
+    const timerState = {
+        timeLeft: timeLeft,
+        isBreak: isBreak,
+        currentSession: currentSession,
+        totalSessions: totalSessions,
+        isActive: timer !== null,
+        currentTaskId: currentTask ? currentTask.id : null,
+        timestamp: Date.now(),
+        startTimeBtn: startTimerBtn ? startTimerBtn.innerHTML : null,
+        startBtnClass: startTimerBtn ? (startTimerBtn.classList.contains('pause-btn') ? 'pause-btn' : 'start-btn') : null
+    };
+    
+    // Save to both localStorage (for longer persistence) and sessionStorage (for immediate tab navigation)
+    localStorage.setItem('timerState', JSON.stringify(timerState));
+    sessionStorage.setItem('timerState', JSON.stringify(timerState));
+    console.log('Timer state saved:', timerState);
+}
+
+// Restore timer state function - check both sessionStorage (priority) and localStorage
+function restoreTimerState() {
+    // First try sessionStorage for most recent state (tab navigation)
+    const sessionState = sessionStorage.getItem('timerState');
+    // Fallback to localStorage
+    const localState = localStorage.getItem('timerState');
+    
+    // Use the most recent state available
+    const savedState = sessionState || localState;
+    if (!savedState) return;
+    
+    try {
+        const timerState = JSON.parse(savedState);
+        console.log('Found saved timer state:', timerState);
+        
+        // Check if saved state is recent (within last 30 minutes)
+        const stateAge = Date.now() - (timerState.timestamp || 0);
+        if (stateAge > 30 * 60 * 1000) {
+            console.log('Saved timer state is too old (> 30 minutes), ignoring');
+            localStorage.removeItem('timerState');
+            sessionStorage.removeItem('timerState');
+            return;
+        }
+        
+        // Calculate time passed since last save
+        let timeAdjustment = 0;
+        if (timerState.isActive) {
+            // Calculate how many seconds passed since the state was saved
+            timeAdjustment = Math.floor(stateAge / 1000);
+            console.log(`Timer was active, adjusting time by ${timeAdjustment} seconds`);
+        }
+        
+        // Restore task first if there was one
+        if (timerState.currentTaskId) {
+            const task = tasks.find(t => t.id === timerState.currentTaskId);
+            if (task) {
+                currentTask = task;
+                currentTaskName.textContent = task.name;
+            }
+        }
+        
+        // Restore timer values with time adjustment if the timer was active
+        if (timerState.isActive) {
+            // Adjust timeLeft to account for elapsed time
+            timeLeft = Math.max(0, timerState.timeLeft - timeAdjustment);
+            
+            // If timer reached zero during inactivity, handle session completion
+            if (timeLeft <= 0) {
+                // If we were in a break, move to next session
+                if (timerState.isBreak) {
+                    isBreak = false;
+                    timeLeft = POMODORO_DURATION;
+                    currentSession = timerState.currentSession + 1;
+                } else {
+                    // If we were in a work session, move to break
+                    isBreak = true;
+                    timeLeft = BREAK_DURATION;
+                    // currentSession stays the same
+                }
+            } else {
+                // Normal case - timer was running and still has time left
+                isBreak = timerState.isBreak || false;
+                currentSession = timerState.currentSession || 1;
+            }
+        } else {
+            // Timer was not active, just restore the state as-is
+            timeLeft = timerState.timeLeft || POMODORO_DURATION;
+            isBreak = timerState.isBreak || false;
+            currentSession = timerState.currentSession || 1;
+        }
+        
+        totalSessions = timerState.totalSessions || 4;
+        
+        // Update display
+        currentSessionDisplay.textContent = currentSession;
+        totalSessionsDisplay.textContent = totalSessions;
+        updateTimerDisplay();
+        updateProgressBar();
+        
+        // Restore button state
+        if (startTimerBtn) {
+            if (timerState.startBtnClass === 'pause-btn') {
+                startTimerBtn.classList.remove('start-btn');
+                startTimerBtn.classList.add('pause-btn');
+                startTimerBtn.innerHTML = '<span class="icon">❚❚</span> Pause';
+                
+                // Setup event listener for pause
+                startTimerBtn.removeEventListener('click', startTimer);
+                startTimerBtn.addEventListener('click', pauseTimer);
+            } else {
+                startTimerBtn.classList.remove('pause-btn');
+                startTimerBtn.classList.add('start-btn');
+                startTimerBtn.innerHTML = '<span class="icon">▶</span> Start';
+                
+                // Setup event listener for start
+                startTimerBtn.removeEventListener('click', pauseTimer);
+                startTimerBtn.addEventListener('click', startTimer);
+            }
+        }
+        
+        // Restart timer if it was active
+        if (timerState.isActive) {
+            startTimer();
+        }
+        
+        console.log('Timer state restored');
+    } catch (error) {
+        console.error('Error restoring timer state:', error);
+    }
+}
 
 // Mobile Menu Toggle
 const mobileMenuToggle = document.getElementById('mobile-menu-toggle');
@@ -78,46 +228,32 @@ sidebar.addEventListener('transitionend', () => {
     }
 });
 
-// Theme Toggle (desktop and mobile)
-function setTheme(isDark) {
-    document.body.dataset.theme = isDark ? 'dark' : 'light';
-    localStorage.setItem('theme', isDark ? 'dark' : 'light');
-    if (themeSwitch) themeSwitch.checked = isDark;
-    if (mobileThemeSwitch) mobileThemeSwitch.checked = isDark;
-}
-
-if (themeSwitch) {
-    themeSwitch.addEventListener('change', () => setTheme(themeSwitch.checked));
-}
-if (mobileThemeSwitch) {
-    mobileThemeSwitch.addEventListener('change', () => setTheme(mobileThemeSwitch.checked));
-}
-
-// Load saved theme
+// Theme handling (simplified - no toggles)
 const savedTheme = localStorage.getItem('theme');
 if (savedTheme) {
-    const isDark = savedTheme === 'dark';
-    if (themeSwitch) themeSwitch.checked = isDark;
-    if (mobileThemeSwitch) mobileThemeSwitch.checked = isDark;
     document.body.dataset.theme = savedTheme;
+} else {
+    // Default to dark theme if not set
+    document.body.dataset.theme = 'dark';
+    localStorage.setItem('theme', 'dark');
 }
 
 // Time conversion helpers
 function localToUTC(localDate) {
-    // Create a new date with the exact same timestamp
-    // This preserves the local time as a UTC time
+    if (!localDate) return new Date();
+    
+    // Create a new Date object to avoid modifying the original
     const d = new Date(localDate.getTime());
-    // Log for debugging
-    console.log(`Converting ${localDate.toLocaleString()} (local) → ${d.toISOString()} (UTC)`);
+    console.log(`🔥 TIME CONVERSION: Converting ${localDate.toLocaleString()} (local) → ${d.toISOString()} (UTC)`);
     return d;
 }
 
 function utcToLocal(utcDate) {
-    // Create a new date with the exact same timestamp
-    // This preserves the UTC time as a local time
+    if (!utcDate) return new Date();
+    
+    // Create a new Date object to avoid modifying the original
     const d = new Date(utcDate.getTime());
-    // Log for debugging
-    console.log(`Converting ${utcDate.toISOString()} (UTC) → ${d.toLocaleString()} (local)`);
+    console.log(`🔥 TIME CONVERSION: Converting ${utcDate instanceof Date ? utcDate.toISOString() : 'invalid date'} (UTC) → ${d.toLocaleString()} (local)`);
     return d;
 }
 
@@ -127,38 +263,46 @@ class Task {
         this.id = Date.now().toString();
         this.name = name;
         
+        // Ensure localDueDate is a Date object
+        const localDate = localDueDate instanceof Date ? localDueDate : new Date(localDueDate);
+        console.log(`🔥 TASK CREATION: Creating task with local date: ${localDate.toLocaleString()}`);
+        
         // Convert local due date to UTC for storage
-        const dueDate = localDueDate instanceof Date ? localDueDate : new Date(localDueDate);
-        this.dueDate = localToUTC(dueDate);
+        // Store as is - we'll handle timezone conversion during display
+        this.dueDate = localDate;
         
         this.duration = duration;
         this.completedSessions = 0;
         this.totalSessions = Math.ceil(duration * 4); // Convert hours to pomodoro sessions
-        this.sessions = this.generateSessions(dueDate); // Pass local date for correct scheduling
+        this.sessions = this.generateSessions(localDate); // Pass local date for correct scheduling
     }
 
     generateSessions(localStartDate) {
         const sessions = [];
+        // Ensure we're working with a proper Date object
         let currentLocalTime = localStartDate instanceof Date ? new Date(localStartDate) : new Date();
-        
+        console.log(`🔥 TASK SESSIONS: Generating sessions starting at local time: ${currentLocalTime.toLocaleString()}`);
+
         // Generate sessions in local time
         for (let i = 0; i < this.totalSessions; i++) {
             const localStartTime = new Date(currentLocalTime.getTime());
             const localEndTime = new Date(currentLocalTime.getTime() + POMODORO_DURATION * 1000);
             
-            // Convert and store as UTC
+            // Store times as they are - we'll handle timezone display elsewhere
             const session = {
                 id: `session-${i}-${Date.now()}`,
-                startTime: localToUTC(localStartTime),  // Store in UTC
-                endTime: localToUTC(localEndTime),      // Store in UTC
+                startTime: localStartTime,
+                endTime: localEndTime,
                 isBreak: false,
                 completed: false
             };
             sessions.push(session);
-            
+
             // Next session starts after pomodoro + break (still in local time)
             currentLocalTime.setTime(currentLocalTime.getTime() + (POMODORO_DURATION + BREAK_DURATION) * 1000);
         }
+        
+        console.log(`🔥 TASK SESSIONS: Generated ${sessions.length} sessions`);
         return sessions;
     }
 }
@@ -240,7 +384,32 @@ function addTaskHandler(e) {
     }
     
     tasks.push(task);
-    saveTasks();
+    
+    // Explicitly save to Firestore with confirmation
+    console.log('🔥 EXPLICIT SAVE: Saving new task to Firestore...');
+    
+    // Save to localStorage first as backup
+    try {
+        localStorage.setItem('tasks', JSON.stringify(tasks));
+    } catch (e) {
+        console.error('Failed to save to localStorage:', e);
+    }
+    
+    // Then save to Firestore - make this async but don't wait
+    if (currentUser) {
+        saveTasks()
+            .then(() => {
+                console.log('🔥 TASK ADDED: Task saved successfully to Firestore');
+            })
+            .catch(error => {
+                console.error('🔥 TASK ADDED ERROR: Failed to save to Firestore:', error);
+                // Try again after a short delay
+                setTimeout(() => saveTasks(), 2000);
+            });
+    } else {
+        console.warn('🔥 EXPLICIT SAVE: User not logged in, skipping Firestore save');
+    }
+    
     renderTasks();
     renderCalendar();
     
@@ -248,6 +417,8 @@ function addTaskHandler(e) {
     dueDateInput.removeAttribute('data-exact-local-time');
     
     taskForm.reset();
+    
+    showNotification('Task added successfully!');
 }
 
 taskForm.addEventListener('submit', addTaskHandler);
@@ -257,7 +428,15 @@ auth.onAuthStateChanged(user => {
     if (user) {
         console.log('User is logged in:', user.email);
         currentUser = user;
-        loadTasks(); // Load tasks from Firestore
+        
+        // Always perform an immediate synchronization on login
+        initialSynchronization().then(() => {
+            // After initial sync, start the real-time listener
+            loadTasks(); 
+            
+            // Restore timer state if available
+            restoreTimerState();
+        });
     } else {
         console.log('No user logged in, redirecting to login page');
         currentUser = null;
@@ -283,8 +462,263 @@ auth.onAuthStateChanged(user => {
             tasks = JSON.parse(localStorage.getItem('tasks')) || [];
             renderTasks();
             renderCalendar();
+            
+            // Restore timer state even when using localStorage
+            restoreTimerState();
         }
     }
+});
+
+// Add a reliable initial synchronization function
+async function initialSynchronization() {
+    console.log('🔄 INITIAL SYNC: Performing initial data synchronization...');
+    
+    if (!currentUser) {
+        console.error('🔄 INITIAL SYNC ERROR: No user logged in');
+        return;
+    }
+    
+    try {
+        // First, get the current Firestore data
+        const doc = await db.collection('users').doc(currentUser.uid).get();
+        
+        // Check if we have existing localStorage data
+        const localTasksStr = localStorage.getItem('tasks');
+        const localTasks = localTasksStr ? JSON.parse(localTasksStr) : [];
+        console.log(`🔄 INITIAL SYNC: Found ${localTasks.length} tasks in localStorage`);
+        
+        // If we have Firestore data, that takes precedence
+        if (doc.exists && doc.data().tasks && Array.isArray(doc.data().tasks)) {
+            const firestoreTasks = doc.data().tasks;
+            console.log(`🔄 INITIAL SYNC: Found ${firestoreTasks.length} tasks in Firestore`);
+            
+            // Process the tasks from Firestore
+            const processedTasks = firestoreTasks.map(task => {
+                try {
+                    const newTask = { ...task };
+                    
+                    // Convert dates
+                    if (typeof task.dueDate === 'number') {
+                        newTask.dueDate = new Date(task.dueDate);
+                    } else if (typeof task.dueDate === 'string') {
+                        newTask.dueDate = new Date(Number(task.dueDate));
+                    } else {
+                        newTask.dueDate = new Date();
+                    }
+                    
+                    // Process sessions
+                    if (!task.sessions || !Array.isArray(task.sessions)) {
+                        newTask.sessions = [];
+                    } else {
+                        newTask.sessions = task.sessions.map(session => {
+                            try {
+                                const newSession = { ...session };
+                                
+                                // Process startTime
+                                if (typeof session.startTime === 'number') {
+                                    newSession.startTime = new Date(session.startTime);
+                                } else if (typeof session.startTime === 'string') {
+                                    newSession.startTime = new Date(Number(session.startTime));
+                                } else {
+                                    newSession.startTime = new Date();
+                                }
+                                
+                                // Process endTime
+                                if (typeof session.endTime === 'number') {
+                                    newSession.endTime = new Date(session.endTime);
+                                } else if (typeof session.endTime === 'string') {
+                                    newSession.endTime = new Date(Number(session.endTime));
+                                } else {
+                                    const startTime = newSession.startTime || new Date();
+                                    newSession.endTime = new Date(startTime.getTime() + POMODORO_DURATION * 1000);
+                                }
+                                
+                                return newSession;
+                            } catch (e) {
+                                console.error('🔄 INITIAL SYNC ERROR: Failed to process session:', e);
+                                const now = new Date();
+                                return {
+                                    id: 'recovery-session-' + Date.now(),
+                                    startTime: now,
+                                    endTime: new Date(now.getTime() + POMODORO_DURATION * 1000),
+                                    isBreak: false,
+                                    completed: false
+                                };
+                            }
+                        });
+                    }
+                    
+                    return newTask;
+                } catch (e) {
+                    console.error('🔄 INITIAL SYNC ERROR: Failed to process task:', e);
+                    return null;
+                }
+            }).filter(Boolean);
+            
+            // Use the Firestore data
+            tasks = processedTasks;
+            
+            // Update localStorage with the latest data
+            localStorage.setItem('tasks', JSON.stringify(tasks));
+            console.log('🔄 INITIAL SYNC: Updated localStorage with Firestore data');
+            
+            // Render the UI
+            renderTasks();
+            renderCalendar();
+            
+            console.log('🔄 INITIAL SYNC: Complete - using Firestore data');
+        } 
+        // If no Firestore data but localStorage has data, push to Firestore
+        else if (localTasks.length > 0) {
+            console.log('🔄 INITIAL SYNC: No Firestore data found, but localStorage has data');
+            
+            // Parse the localStorage tasks
+            tasks = localTasks.map(task => {
+                try {
+                    // Process the task data
+                    if (typeof task.dueDate === 'number' || typeof task.dueDate === 'string') {
+                        task.dueDate = new Date(Number(task.dueDate));
+                    }
+                    
+                    if (task.sessions) {
+                        task.sessions = task.sessions.map(session => {
+                            if (typeof session.startTime === 'number' || typeof session.startTime === 'string') {
+                                session.startTime = new Date(Number(session.startTime));
+                            }
+                            if (typeof session.endTime === 'number' || typeof session.endTime === 'string') {
+                                session.endTime = new Date(Number(session.endTime));
+                            }
+                            return session;
+                        });
+                    }
+                    
+                    return task;
+                } catch (e) {
+                    console.error('🔄 INITIAL SYNC ERROR: Failed to process localStorage task:', e);
+                    return null;
+                }
+            }).filter(Boolean);
+            
+            // Save localStorage data to Firestore
+            console.log('🔄 INITIAL SYNC: Pushing localStorage data to Firestore...');
+            await saveTasks();
+            
+            // Render the UI
+            renderTasks();
+            renderCalendar();
+            
+            console.log('🔄 INITIAL SYNC: Complete - pushed localStorage data to Firestore');
+        }
+        // No data in either location
+        else {
+            console.log('🔄 INITIAL SYNC: No tasks found in either Firestore or localStorage');
+            tasks = [];
+            renderTasks();
+            renderCalendar();
+        }
+    } catch (error) {
+        console.error('🔄 INITIAL SYNC ERROR:', error);
+        
+        // Fallback to localStorage in case of error
+        const localTasksStr = localStorage.getItem('tasks');
+        if (localTasksStr) {
+            try {
+                const localTasks = JSON.parse(localTasksStr);
+                tasks = localTasks;
+                console.log('🔄 INITIAL SYNC: Falling back to localStorage data due to error');
+                renderTasks();
+                renderCalendar();
+            } catch (e) {
+                console.error('🔄 INITIAL SYNC ERROR: Failed to parse localStorage data:', e);
+                tasks = [];
+                renderTasks();
+                renderCalendar();
+            }
+        }
+    }
+}
+
+// Handle logout
+document.addEventListener('DOMContentLoaded', () => {
+    // Set up automatic save verification
+    if (currentUser) {
+        console.log('🔄 AUTO SYNC: Setting up automatic synchronization...');
+        
+        // Check for unsaved changes periodically and save if needed
+        setInterval(() => {
+            if (currentUser) {
+                console.log('🔄 AUTO SYNC: Performing automatic verification...');
+                
+                // Force a save operation to ensure data is persisted
+                saveTasks();
+                
+                // Verify data was saved correctly
+                setTimeout(() => {
+                    db.collection('users').doc(currentUser.uid).get()
+                        .then(doc => {
+                            if (doc.exists && doc.data().tasks) {
+                                console.log('🔄 AUTO SYNC: Verification successful -', doc.data().tasks.length, 'tasks in Firestore');
+                            } else {
+                                console.error('🔄 AUTO SYNC: Verification failed - no tasks found in Firestore');
+                                // Try to save again if verification failed
+                                saveTasks();
+                            }
+                        })
+                        .catch(error => {
+                            console.error('🔄 AUTO SYNC ERROR:', error);
+                        });
+                }, 1000);
+            }
+        }, 30 * 1000); // Check every 30 seconds
+    }
+    
+    // Add logout event listener
+    const logoutButton = document.getElementById('logout-button');
+    if (logoutButton) {
+        logoutButton.addEventListener('click', async () => {
+            console.log('Logging out user...');
+            
+            // Save any unsaved changes before logging out
+            if (currentUser) {
+                try {
+                    console.log('🔥 LOGOUT: Saving tasks before logout...');
+                    await saveTasks();
+                    console.log('🔥 LOGOUT: Tasks saved successfully before logout');
+                } catch (error) {
+                    console.error('🔥 LOGOUT ERROR: Failed to save tasks before logout:', error);
+                    // Continue with logout even if save fails
+                }
+            }
+            
+            // Clean up Firestore listener if it exists
+            if (window.firestoreTaskListener) {
+                window.firestoreTaskListener();
+                console.log('🔥 FIREBASE: Unsubscribed from Firestore listener');
+                window.firestoreTaskListener = null;
+            }
+            
+            try {
+                await firebase.auth().signOut();
+                console.log('User successfully logged out');
+                // The redirect will happen automatically due to the auth state change listener
+            } catch (error) {
+                console.error('Error signing out:', error);
+                alert('Error signing out. Please try again.');
+            }
+        });
+    }
+    
+    // Set up periodic task refresh to handle any sync issues
+    setInterval(() => {
+        if (currentUser) {
+            console.log('🔥 FIREBASE: Performing periodic task refresh...');
+            // Force a refresh by temporarily unsubscribing and resubscribing
+            if (window.firestoreTaskListener) {
+                window.firestoreTaskListener();
+                loadTasks(); // This will create a new listener
+            }
+        }
+    }, 30 * 1000); // Refresh every 30 seconds
 });
 
 // Load Tasks from Firestore or localStorage
@@ -318,201 +752,184 @@ function loadTasks() {
                         task.sessions = [];
                     }
                     
-                    if (task.sessions && Array.isArray(task.sessions)) {
-                        task.sessions.forEach(session => {
-                            try {
-                                // Load session times as UTC
-                                if (typeof session.startTime === 'number') {
+                    // Process sessions if they exist
+                    task.sessions = task.sessions.map(session => {
+                        try {
+                            // Process startTime
+                            if (typeof session.startTime === 'number') {
+                                session.startTime = new Date(session.startTime);
+                            } else if (typeof session.startTime === 'string') {
+                                if (session.startTime.includes('T')) {
+                                    // ISO string
                                     session.startTime = new Date(session.startTime);
-                                } else if (typeof session.startTime === 'string') {
-                                    // Handle string cases (for backward compatibility)
-                                    if (session.startTime.includes('T')) {
-                                        // ISO string
-                                        session.startTime = new Date(session.startTime);
-                                    } else {
-                                        // Numeric string
-                                        session.startTime = new Date(Number(session.startTime));
-                                    }
-                                } else if (!(session.startTime instanceof Date)) {
-                                    session.startTime = new Date();
+                                } else {
+                                    // Numeric string
+                                    session.startTime = new Date(Number(session.startTime));
                                 }
-                                
-                                if (typeof session.endTime === 'number') {
-                                    session.endTime = new Date(session.endTime);
-                                } else if (typeof session.endTime === 'string') {
-                                    // Handle string cases (for backward compatibility)
-                                    if (session.endTime.includes('T')) {
-                                        // ISO string
-                                        session.endTime = new Date(session.endTime);
-                                    } else {
-                                        // Numeric string
-                                        session.endTime = new Date(Number(session.endTime));
-                                    }
-                                } else if (!(session.endTime instanceof Date)) {
-                                    const startTime = session.startTime || new Date();
-                                    session.endTime = new Date(startTime.getTime() + POMODORO_DURATION * 1000);
-                                }
-                            } catch (e) {
-                                const now = new Date();
-                                session.startTime = now;
-                                session.endTime = new Date(now.getTime() + POMODORO_DURATION * 1000);
+                            } else if (!(session.startTime instanceof Date)) {
+                                session.startTime = new Date();
                             }
-                        });
-                    }
+                            
+                            // Process endTime
+                            if (typeof session.endTime === 'number') {
+                                session.endTime = new Date(session.endTime);
+                            } else if (typeof session.endTime === 'string') {
+                                if (session.endTime.includes('T')) {
+                                    // ISO string
+                                    session.endTime = new Date(session.endTime);
+                                } else {
+                                    // Numeric string
+                                    session.endTime = new Date(Number(session.endTime));
+                                }
+                            } else if (!(session.endTime instanceof Date)) {
+                                session.endTime = new Date(session.startTime.getTime() + POMODORO_DURATION * 1000);
+                            }
+                        } catch (e) {
+                            console.error('Error processing session from localStorage:', e);
+                            // Create default times if there's an error
+                            const now = new Date();
+                            session.startTime = now;
+                            session.endTime = new Date(now.getTime() + POMODORO_DURATION * 1000);
+                        }
+                        return session;
+                    });
                 } catch (e) {
-                    console.error('Error processing task from localStorage:', e, task);
+                    console.error('Error processing task:', e);
                 }
             });
             
             tasks = parsedTasks;
             localTasksLoaded = true;
+            console.log('💾 LOCAL: Tasks loaded from localStorage. Count:', tasks.length);
         }
-    } catch (e) {
-        console.error('Failed to load from localStorage:', e);
-    }
-    
-    // If not online, just use localStorage and render
-    if (!navigator.onLine) {
-        console.warn('Device appears to be offline. Using localStorage tasks only.');
-        renderTasks();
-        renderCalendar();
-        return;
+    } catch (error) {
+        console.error('💾 LOCAL ERROR: Failed to load from localStorage:', error);
     }
     
     if (currentUser) {
-        // Set a timeout to fail gracefully if Firestore is slow or failing
-        const timeoutPromise = new Promise((_, reject) => {
-            setTimeout(() => {
-                reject(new Error('Firestore load operation timed out after 5 seconds'));
-            }, 5000);
-        });
+        // Clear any existing Firestore listeners
+        if (window.firestoreTaskListener) {
+            window.firestoreTaskListener();
+            console.log('🔥 FIREBASE: Unsubscribed from previous Firestore listener');
+        }
         
-        // Load from Firestore
-        console.log('🔥 FIREBASE: Attempting to load tasks from Firestore for user:', currentUser.uid);
+        console.log('🔥 FIREBASE: Setting up real-time listener for user:', currentUser.uid);
         
-        // Get the user document
-        const firestorePromise = firebase.firestore().collection('users').doc(currentUser.uid)
-            .get()
-            .then(doc => {
-                if (doc.exists && doc.data().tasks && Array.isArray(doc.data().tasks)) {
-                    const firestoreTasks = doc.data().tasks;
-                    console.log('🔥 FIREBASE SUCCESS: Found', firestoreTasks.length, 'tasks in Firestore');
-                    
-                    if (firestoreTasks.length === 0 && localTasksLoaded && tasks.length > 0) {
-                        console.log('🔥 FIREBASE: Firestore has 0 tasks but localStorage has tasks, keeping localStorage tasks');
-                        // Keep using the localStorage tasks, they might not have been saved to Firestore yet
-                        return;
-                    }
-                    
-                    // Convert dates from strings to Date objects
-                    const processedTasks = firestoreTasks.map(task => {
-                        try {
-                            // Create a new task object
-                            const newTask = { ...task };
-                            
-                            // Convert string to Date
-                            if (typeof task.dueDate === 'number') {
-                                newTask.dueDate = new Date(task.dueDate);
-                            } else if (typeof task.dueDate === 'string') {
-                                newTask.dueDate = new Date(Number(task.dueDate));
-                            } else if (!(task.dueDate instanceof Date)) {
-                                newTask.dueDate = new Date();
-                            }
-                            
-                            // Initialize sessions if it doesn't exist
-                            if (!task.sessions || !Array.isArray(task.sessions)) {
-                                newTask.sessions = [];
-                            } else {
-                                // Convert session dates
-                                newTask.sessions = task.sessions.map(session => {
-                                    try {
-                                        const newSession = { ...session };
-                                        
-                                        if (typeof session.startTime === 'number') {
-                                            newSession.startTime = new Date(session.startTime);
-                                        } else if (typeof session.startTime === 'string') {
-                                            newSession.startTime = new Date(Number(session.startTime));
-                                        } else if (!(session.startTime instanceof Date)) {
-                                            newSession.startTime = new Date();
-                                        }
-                                        
-                                        if (typeof session.endTime === 'number') {
-                                            newSession.endTime = new Date(session.endTime);
-                                        } else if (typeof session.endTime === 'string') {
-                                            newSession.endTime = new Date(Number(session.endTime));
-                                        } else if (!(session.endTime instanceof Date)) {
-                                            const startTime = newSession.startTime || new Date();
-                                            newSession.endTime = new Date(startTime.getTime() + POMODORO_DURATION * 1000);
-                                        }
-                                        
-                                        return newSession;
-                                    } catch (e) {
-                                        console.error('Error processing session from Firestore:', e, session);
-                                        // Return a default session if conversion fails
-                                        const now = new Date();
-                                        return {
-                                            id: 'recovery-session-' + Date.now(),
-                                            startTime: now,
-                                            endTime: new Date(now.getTime() + POMODORO_DURATION * 1000),
-                                            isBreak: false,
-                                            completed: false
-                                        };
-                                    }
-                                });
-                            }
-                            
-                            return newTask;
-                        } catch (e) {
-                            console.error('Error processing task from Firestore:', e, task);
-                            // Skip invalid tasks
-                            return null;
+        // Set up a real-time listener for Firestore updates
+        window.firestoreTaskListener = db.collection('users').doc(currentUser.uid)
+            .onSnapshot(
+                doc => {
+                    if (doc.exists && doc.data().tasks && Array.isArray(doc.data().tasks)) {
+                        const firestoreTasks = doc.data().tasks;
+                        console.log('🔥 FIREBASE SUCCESS: Real-time update with', firestoreTasks.length, 'tasks from Firestore');
+                        
+                        if (firestoreTasks.length === 0 && localTasksLoaded && tasks.length > 0) {
+                            console.log('🔥 FIREBASE: Firestore has 0 tasks but localStorage has tasks, syncing to Firestore');
+                            saveTasks();
+                            return;
                         }
-                    }).filter(Boolean); // Remove any null tasks that failed processing
-                    
-                    // Override localStorage data with Firestore data
-                    tasks = processedTasks;
-                    
-                    // Save back to localStorage for backup
-                    try {
-    localStorage.setItem('tasks', JSON.stringify(tasks));
-                    } catch (e) {
-                        console.error('Failed to save tasks to localStorage after Firestore load:', e);
+                        
+                        // Convert dates from strings to Date objects
+                        const processedTasks = firestoreTasks.map(task => {
+                            try {
+                                // Create a new task object
+                                const newTask = { ...task };
+                                
+                                // Convert string to Date
+                                if (typeof task.dueDate === 'number') {
+                                    newTask.dueDate = new Date(task.dueDate);
+                                } else if (typeof task.dueDate === 'string') {
+                                    newTask.dueDate = new Date(Number(task.dueDate));
+                                } else if (!(task.dueDate instanceof Date)) {
+                                    newTask.dueDate = new Date();
+                                }
+                                
+                                // Initialize sessions if it doesn't exist
+                                if (!task.sessions || !Array.isArray(task.sessions)) {
+                                    newTask.sessions = [];
+                                } else {
+                                    // Convert session dates
+                                    newTask.sessions = task.sessions.map(session => {
+                                        try {
+                                            const newSession = { ...session };
+                                            
+                                            if (typeof session.startTime === 'number') {
+                                                newSession.startTime = new Date(session.startTime);
+                                            } else if (typeof session.startTime === 'string') {
+                                                newSession.startTime = new Date(Number(session.startTime));
+                                            } else if (!(session.startTime instanceof Date)) {
+                                                newSession.startTime = new Date();
+                                            }
+                                            
+                                            if (typeof session.endTime === 'number') {
+                                                newSession.endTime = new Date(session.endTime);
+                                            } else if (typeof session.endTime === 'string') {
+                                                newSession.endTime = new Date(Number(session.endTime));
+                                            } else {
+                                                const startTime = newSession.startTime || new Date();
+                                                newSession.endTime = new Date(startTime.getTime() + POMODORO_DURATION * 1000);
+                                            }
+                                            
+                                            return newSession;
+                                        } catch (e) {
+                                            console.error('Error processing session from Firestore:', e, session);
+                                            // Return a default session if conversion fails
+                                            const now = new Date();
+                                            return {
+                                                id: 'recovery-session-' + Date.now(),
+                                                startTime: now,
+                                                endTime: new Date(now.getTime() + POMODORO_DURATION * 1000),
+                                                isBreak: false,
+                                                completed: false
+                                            };
+                                        }
+                                    });
+                                }
+                                
+                                return newTask;
+                            } catch (e) {
+                                console.error('Error processing task from Firestore:', e, task);
+                                // Skip invalid tasks
+                                return null;
+                            }
+                        }).filter(Boolean); // Remove any null tasks that failed processing
+                        
+                        // Override localStorage data with Firestore data
+                        tasks = processedTasks;
+                        
+                        // Save back to localStorage for backup
+                        try {
+                            localStorage.setItem('tasks', JSON.stringify(tasks));
+                        } catch (e) {
+                            console.error('Failed to save tasks to localStorage after Firestore load:', e);
+                        }
+                        
+                        // Render UI with updated tasks
+                        renderTasks();
+                        renderCalendar();
+                    } else {
+                        console.log('🔥 FIREBASE: No tasks found in Firestore or document doesn\'t exist');
+                        
+                        // If we already have tasks from localStorage, sync them to Firestore
+                        if (localTasksLoaded && tasks.length > 0) {
+                            console.log('🔥 FIREBASE: Syncing localStorage tasks to Firestore');
+                            saveTasks();
+                        }
+                        
+                        // Render what we have from localStorage
+                        renderTasks();
+                        renderCalendar();
                     }
-                } else {
-                    console.log('🔥 FIREBASE: No tasks found in Firestore');
+                },
+                error => {
+                    console.error('🔥 FIREBASE ERROR with real-time listener:', error);
+                    console.log('Using localStorage tasks instead');
                     
-                    // If we already have tasks from localStorage, sync them to Firestore
-                    if (localTasksLoaded && tasks.length > 0) {
-                        console.log('🔥 FIREBASE: Syncing localStorage tasks to Firestore');
-                        saveTasks();
-                    }
-                }
-                
-                // Render UI
-                renderTasks();
-                renderCalendar();
-            })
-            .catch(error => {
-                console.error('🔥 FIREBASE ERROR loading tasks:', error);
-                console.log('Using localStorage tasks instead');
-                
-                // Already loaded from localStorage above
-                renderTasks();
-                renderCalendar();
-            });
-        
-        // Race between Firebase and timeout
-        Promise.race([firestorePromise, timeoutPromise])
-            .catch(error => {
-                console.error('🔥 FIREBASE LOAD TIMEOUT:', error);
-                console.log('Firebase load timed out, using localStorage tasks instead');
-                
-                // Render what we have from localStorage if we loaded something
-                if (localTasksLoaded) {
+                    // Render what we have from localStorage
                     renderTasks();
                     renderCalendar();
                 }
-            });
+            );
     } else {
         // Just render what we have from localStorage
         renderTasks();
@@ -522,10 +939,13 @@ function loadTasks() {
 
 // Save Tasks to Firestore or localStorage
 function saveTasks() {
+    // Declare serializableTasks at the function level so it's available to all blocks
+    let serializableTasks = [];
+    
     // Always save to localStorage as a backup
     try {
         // Save with UTC timestamps
-        const serializableTasks = tasks.map(task => {
+        serializableTasks = tasks.map(task => {
             // Task due date is already in UTC
             let dueDate;
             try {
@@ -572,60 +992,77 @@ function saveTasks() {
         console.log('💾 LOCAL: Tasks saved to localStorage successfully as UTC timestamps');
     } catch (error) {
         console.error('💾 LOCAL ERROR: Failed to save to localStorage:', error);
+        // If serialization failed, create a simpler version as fallback
+        serializableTasks = tasks.map(task => ({
+            id: task.id || Date.now().toString(),
+            name: task.name || 'Unnamed Task',
+            dueDate: task.dueDate instanceof Date ? task.dueDate.getTime() : Date.now(),
+            duration: task.duration || 1,
+            completedSessions: task.completedSessions || 0,
+            totalSessions: task.totalSessions || 4,
+            sessions: []
+        }));
     }
     
     if (!currentUser) {
         console.warn('🔥 FIREBASE: No user logged in, skipping Firestore save');
-        return;
+        return Promise.resolve(); // Return resolved promise when no user is logged in
     }
     
-    // Save to Firestore
+    // Save to Firestore and return the promise
     console.log('🔥 FIREBASE: Attempting to save tasks to Firestore for user:', currentUser.uid);
     console.log('🔥 FIREBASE: Number of tasks being saved:', tasks.length);
     
-    try {
-        // Use the same serializableTasks as above
-        const savePromise = firebase.firestore().collection('users').doc(currentUser.uid)
-            .set({
-                tasks: serializableTasks,
-                lastUpdated: new Date().toISOString(),
-                deviceInfo: navigator.userAgent
-            }, { merge: true });
-        const timeoutPromise = new Promise((_, reject) => {
-            setTimeout(() => reject(new Error('Firestore operation timed out after 10 seconds')), 10000);
-        });
-        Promise.race([savePromise, timeoutPromise])
-            .then(() => {
-                console.log('🔥 FIREBASE SUCCESS: Tasks saved to Firestore successfully');
-                setTimeout(() => {
-                    verifyFirestoreData();
-                }, 1000);
-            })
-            .catch(error => {
-                console.error('🔥 FIREBASE ERROR:', error);
-                setTimeout(() => {
-                    console.log('🔥 FIREBASE: Retrying save operation after error');
-                    firebase.firestore().collection('users').doc(currentUser.uid)
-                        .set({
-                            tasks: serializableTasks,
-                            lastUpdated: new Date().toISOString(),
-                            retryInfo: {
-                                timestamp: new Date().toISOString(),
-                                originalError: error.message
-                            }
-                        }, { merge: true })
-                        .then(() => {
-                            console.log('🔥 FIREBASE SUCCESS: Tasks saved on retry');
-                        })
-                        .catch(retryError => {
-                            console.error('🔥 FIREBASE ERROR ON RETRY:', retryError);
-                            alert('Error saving tasks to Firebase. Your tasks have been saved locally as a backup.');
-                        });
-                }, 2000);
-            });
-    } catch (error) {
-        console.error('Error preparing tasks for Firestore:', error);
-    }
+    // Create a promise that resolves when the save is complete
+    return new Promise((resolve, reject) => {
+        try {
+            // Save to Firestore using the db reference
+            db.collection('users').doc(currentUser.uid)
+                .set({
+                    tasks: serializableTasks,
+                    lastUpdated: new Date().toISOString(),
+                    deviceInfo: navigator.userAgent
+                }, { merge: true })
+                .then(() => {
+                    console.log('🔥 FIREBASE SUCCESS: Tasks saved to Firestore successfully');
+                    resolve(); // Resolve the promise on success
+                    
+                    // Verify the data was saved correctly
+                    setTimeout(() => {
+                        verifyFirestoreData();
+                    }, 1000);
+                })
+                .catch(error => {
+                    console.error('🔥 FIREBASE ERROR:', error);
+                    
+                    // Retry once on failure
+                    setTimeout(() => {
+                        console.log('🔥 FIREBASE: Retrying save operation after error');
+                        db.collection('users').doc(currentUser.uid)
+                            .set({
+                                tasks: serializableTasks,
+                                lastUpdated: new Date().toISOString(),
+                                retryInfo: {
+                                    timestamp: new Date().toISOString(),
+                                    originalError: error.message
+                                }
+                            }, { merge: true })
+                            .then(() => {
+                                console.log('🔥 FIREBASE SUCCESS: Tasks saved on retry');
+                                resolve(); // Resolve the promise on successful retry
+                            })
+                            .catch(retryError => {
+                                console.error('🔥 FIREBASE ERROR ON RETRY:', retryError);
+                                alert('Error saving tasks to Firebase. Your tasks have been saved locally as a backup.');
+                                reject(retryError); // Reject the promise on retry failure
+                            });
+                    }, 2000);
+                });
+        } catch (error) {
+            console.error('Error preparing tasks for Firestore:', error);
+            reject(error); // Reject the promise for general errors
+        }
+    });
 }
 
 // Add a verification function to check if data was properly saved
@@ -642,6 +1079,9 @@ function verifyFirestoreData() {
                 const firestoreTasks = doc.data().tasks || [];
                 console.log('🔥 FIREBASE VERIFICATION: Found', firestoreTasks.length, 'tasks in Firestore');
                 console.log('🔥 FIREBASE VERIFICATION: First task:', firestoreTasks[0]?.name || 'No tasks');
+                
+                // Log the full tasks data for debugging
+                console.log('🔥 FIREBASE VERIFICATION: Full tasks data:', JSON.stringify(firestoreTasks));
             } else {
                 console.log('🔥 FIREBASE VERIFICATION: No tasks found in user document!', doc.exists ? 'Document exists' : 'Document does not exist');
                 if (doc.exists) {
@@ -700,9 +1140,22 @@ function renderTasks() {
                     </div>
                 </div>
             <div class="task-buttons">
-                <button onclick="startTask('${task.id}')">Start</button>
-                <button onclick="editTask('${task.id}')">Edit</button>
-                <button onclick="deleteTask('${task.id}')">Delete</button>
+                <button onclick="startTask('${task.id}')" class="icon-btn start-icon" title="Start Task">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                        <path d="M11.596 8.697l-6.363 3.692c-.54.313-1.233-.066-1.233-.697V4.308c0-.63.692-1.01 1.233-.696l6.363 3.692a.802.802 0 0 1 0 1.393z"/>
+                    </svg>
+                </button>
+                <button onclick="editTask('${task.id}')" class="icon-btn edit-icon" title="Edit Task">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                        <path d="M12.854.146a.5.5 0 0 0-.707 0L10.5 1.793 14.207 5.5l1.647-1.646a.5.5 0 0 0 0-.708l-3-3zm.646 6.061L9.793 2.5 3.293 9H3.5a.5.5 0 0 1 .5.5v.5h.5a.5.5 0 0 1 .5.5v.5h.5a.5.5 0 0 1 .5.5v.5h.5a.5.5 0 0 1 .5.5v.207l6.5-6.5zm-7.468 7.468A.5.5 0 0 1 6 13.5V13h-.5a.5.5 0 0 1-.5-.5V12h-.5a.5.5 0 0 1-.5-.5V11h-.5a.5.5 0 0 1-.5-.5V10h-.5a.499.499 0 0 1-.175-.032l-.179.178a.5.5 0 0 0-.11.168l-2 5a.5.5 0 0 0 .65.65l5-2a.5.5 0 0 0 .168-.11l.178-.178z"/>
+                    </svg>
+                </button>
+                <button onclick="deleteTask('${task.id}')" class="icon-btn delete-icon" title="Delete Task">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                        <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"/>
+                        <path fill-rule="evenodd" d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z"/>
+                    </svg>
+                </button>
             </div>
         `;
         tasksContainer.appendChild(taskElement);
@@ -716,6 +1169,8 @@ function renderTasks() {
 function editTask(taskId) {
     const task = tasks.find(task => task.id === taskId);
     if (!task) return;
+    
+    console.log('🔥 EDIT: Editing task with ID:', taskId);
     
     // Format the date for the datetime-local input
     const dateStr = new Date(task.dueDate.getTime() - task.dueDate.getTimezoneOffset() * 60000)
@@ -737,13 +1192,44 @@ function editTask(taskId) {
         e.preventDefault();
         
         // Update task with new values
+        const originalName = task.name;
         task.name = taskNameInput.value;
         task.dueDate = new Date(taskDueDateInput.value);
         task.duration = parseFloat(taskDurationInput.value);
         task.totalSessions = Math.ceil(task.duration * 4);
-        task.sessions = task.generateSessions(task.dueDate);
         
-        saveTasks();
+        // Regenerate sessions
+        if (typeof task.generateSessions === 'function') {
+            task.sessions = task.generateSessions(task.dueDate);
+        } else {
+            console.warn('🔥 EDIT WARNING: generateSessions method not found on task object');
+        }
+        
+        console.log('🔥 EXPLICIT SAVE: Saving edited task to Firestore...');
+        
+        // Save to localStorage first as backup
+        try {
+            localStorage.setItem('tasks', JSON.stringify(tasks));
+            console.log('🔥 EDIT: Changes saved to localStorage');
+        } catch (e) {
+            console.error('🔥 EDIT ERROR: Failed to save to localStorage:', e);
+        }
+        
+        // Then save to Firestore using promise
+        if (currentUser) {
+            saveTasks()
+                .then(() => {
+                    console.log('🔥 EDIT: Changes saved successfully to Firestore');
+                })
+                .catch(error => {
+                    console.error('🔥 EDIT ERROR: Failed to save to Firestore:', error);
+                    // Try again after a short delay
+                    setTimeout(() => saveTasks(), 2000);
+                });
+        } else {
+            console.warn('🔥 EDIT: User not logged in, skipping Firestore save');
+        }
+        
         renderTasks();
         renderCalendar();
         taskForm.reset();
@@ -751,103 +1237,210 @@ function editTask(taskId) {
         // Restore original form behavior
         taskForm.removeEventListener('submit', editHandler);
         taskForm.addEventListener('submit', addTaskHandler);
+        
+        // If on mobile, close the sidebar after editing and remove any edit indicators
+        if (window.innerWidth <= 768) {
+            // Remove edit indicator if present
+            const editIndicator = document.querySelector('.edit-mode-indicator');
+            if (editIndicator) {
+                editIndicator.remove();
+            }
+            
+            // Close the sidebar
+            sidebar.classList.remove('active');
+        }
+        
+        showNotification(`Task "${originalName}" updated!`);
     });
     
     // Focus on the name input for better UX
     taskNameInput.focus();
     
-    // If on mobile, scroll to the form
+    // Highlight the form for mobile view (sidebar should already be open from showTaskOptionsMenu)
     if (window.innerWidth <= 768) {
-        sidebar.classList.add('active');
+        // Scroll form into view with a slight delay to ensure the sidebar animation completes
+        taskForm.scrollIntoView({ behavior: 'smooth' });
+        
+        // Add a temporary class to highlight the form
+        taskForm.classList.add('highlight-form');
         setTimeout(() => {
-            taskForm.scrollIntoView({ behavior: 'smooth' });
-        }, 300);
+            taskForm.classList.remove('highlight-form');
+        }, 1500);
     }
 }
 
 // Delete Task
 function deleteTask(taskId) {
+    console.log('🔥 DELETE: Deleting task with ID:', taskId);
+    const taskToDelete = tasks.find(task => task.id === taskId);
+    
+    if (!taskToDelete) {
+        console.error('🔥 DELETE ERROR: Task not found with ID', taskId);
+        return;
+    }
+    
+    // Delete from the array
     tasks = tasks.filter(task => task.id !== taskId);
-    saveTasks();
+    
+    // Explicitly save changes to Firestore
+    console.log('🔥 EXPLICIT SAVE: Saving task deletion to Firestore...');
+    
+    // Save to localStorage first as backup
+    try {
+        localStorage.setItem('tasks', JSON.stringify(tasks));
+        console.log('🔥 DELETE: Task removed from localStorage');
+    } catch (e) {
+        console.error('🔥 DELETE ERROR: Failed to save to localStorage after deletion:', e);
+    }
+    
+    // Then save to Firestore using promise
+    if (currentUser) {
+        saveTasks()
+            .then(() => {
+                console.log('🔥 DELETE: Task deletion saved successfully to Firestore');
+            })
+            .catch(error => {
+                console.error('🔥 DELETE ERROR: Failed to save to Firestore:', error);
+                // Try again after a short delay
+                setTimeout(() => saveTasks(), 2000);
+            });
+    } else {
+        console.warn('🔥 DELETE: User not logged in, skipping Firestore save');
+    }
+    
     renderTasks();
     renderCalendar();
+    
+    showNotification(`Task "${taskToDelete.name}" deleted!`);
 }
 
 // Start Task
 function startTask(taskId) {
-    if (!tasks || tasks.length === 0) {
-        showNotification('No tasks available');
-        return;
-    }
-    currentTask = tasks.find(task => task.id === taskId);
-    if (!currentTask) {
-        showNotification('Task not found');
-        return;
-    }
-    // Find the next uncompleted session
-    const nextSession = currentTask.sessions.find((session, idx) => !session.completed && idx === currentTask.completedSessions);
-    if (nextSession) {
-        const now = new Date();
-        const sessionDate = nextSession.startTime instanceof Date ? nextSession.startTime : new Date(nextSession.startTime);
-        // Only allow starting if session is scheduled for today and current hour
-        if (
-            now.toDateString() !== sessionDate.toDateString() ||
-            now.getHours() !== sessionDate.getHours()
-        ) {
-            showNotification(`This task is scheduled for ${sessionDate.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})} on ${sessionDate.toLocaleDateString()}. You can't start it now.`);
-            return;
-        }
-    }
-    currentTaskName.textContent = currentTask.name;
-    currentSession = currentTask.completedSessions + 1;
-    totalSessions = currentTask.totalSessions;
+    const task = tasks.find(t => t.id === taskId);
+    if (!task) return;
+    
+    currentTask = task;
+    currentTaskName.textContent = task.name;
+    
+    // Update session counter based on task progress
+    currentSession = task.completedSessions + 1;
+    totalSessions = task.totalSessions;
     currentSessionDisplay.textContent = currentSession;
     totalSessionsDisplay.textContent = totalSessions;
-    resetTimer();
-    startTimer();
+    
+    // Reset timer
+    timeLeft = POMODORO_DURATION;
+    isBreak = false;
+    updateTimerDisplay();
+    updateProgressBar();
+    
+    // Scroll to timer section
+    document.querySelector('.timer-section').scrollIntoView({ behavior: 'smooth' });
 }
 
 // Timer Functions
 function startTimer() {
+    // Clear any existing timer
     if (timer) {
-        showNotification('Task already started');
-        return;
+        clearInterval(timer);
     }
+    
+    if (currentTask) {
+        document.title = `${timeLeft > 0 ? formatTime(timeLeft) : '00:00'} - ${currentTask.name} - Pomodoro`;
+    } else {
+        document.title = `${timeLeft > 0 ? formatTime(timeLeft) : '00:00'} - Pomodoro`;
+    }
+    
+    // Update button text
+    startTimerBtn.innerHTML = '<span class="icon">❚❚</span> Pause';
+    startTimerBtn.classList.remove('start-btn');
+    startTimerBtn.classList.add('pause-btn');
+    
+    // Change start button to function as pause
+    startTimerBtn.removeEventListener('click', startTimer);
+    startTimerBtn.addEventListener('click', pauseTimer);
+    
+    // Get the start time for more accurate timing
+    const startTime = Date.now();
+    const initialTimeLeft = timeLeft;
+    
+    // Create a new timer with more accurate timing
     timer = setInterval(() => {
-        timeLeft--;
+        // Calculate elapsed time since timer started
+        const elapsed = Math.floor((Date.now() - startTime) / 1000);
+        // Calculate current time left
+        timeLeft = Math.max(0, initialTimeLeft - elapsed);
+        
         updateTimerDisplay();
+        
+        // Save state periodically (every 10 seconds)
+        if (timeLeft % 10 === 0) {
+            saveTimerState();
+        }
         
         if (timeLeft <= 0) {
             clearInterval(timer);
-            timer = null;
+            // Play sound if available
+            const audio = new Audio('https://actions.google.com/sounds/v1/alarms/digital_watch_alarm_long.ogg');
+            audio.play().catch(e => console.log('Audio play failed:', e));
             
-            if (!isBreak) {
-                currentTask.completedSessions++;
-                saveTasks();
-                renderTasks();
-                
-                if (currentTask.completedSessions < currentTask.totalSessions) {
-                    isBreak = true;
-                    timeLeft = BREAK_DURATION;
-                    showNotification('Break time!');
+            if (isBreak) {
+                // Break is over, start next session
+                isBreak = false;
+                if (currentSession < totalSessions) {
+                    currentSession++;
+                    currentSessionDisplay.textContent = currentSession;
+                    timeLeft = POMODORO_DURATION;
+                    updateTimerDisplay();
+                    updateProgressBar();
+                    
+                    // Save state before starting next session
+                    saveTimerState();
+                    
                     startTimer();
                 } else {
-                    showNotification('Task completed!');
-                    resetTimer();
+                    // All sessions completed
+                    completeTask();
                 }
             } else {
-                isBreak = false;
-                timeLeft = POMODORO_DURATION;
-                showNotification('Break over! Back to work!');
+                // Work session is over, track it in journey
+                if (window.journeyTracker) {
+                    // Award points for completing a session, regardless of whether it's a task session or free session
+                    window.journeyTracker.addSessionCompletion();
+                }
+                
+                // Start break
+                isBreak = true;
+                timeLeft = BREAK_DURATION;
+                updateTimerDisplay();
+                
+                // Save state before starting break
+                saveTimerState();
+                
                 startTimer();
             }
         }
     }, 1000);
+    
+    // Save state after timer starts
+    saveTimerState();
 }
 
 function pauseTimer() {
     clearInterval(timer);
     timer = null;
+    
+    // Update button text
+    startTimerBtn.innerHTML = '<span class="icon">▶</span> Resume';
+    startTimerBtn.classList.remove('pause-btn');
+    startTimerBtn.classList.add('start-btn');
+    
+    // Change pause button back to start
+    startTimerBtn.removeEventListener('click', pauseTimer);
+    startTimerBtn.addEventListener('click', startTimer);
+    
+    // Save the paused state
+    saveTimerState();
 }
 
 function resetTimer() {
@@ -856,19 +1449,142 @@ function resetTimer() {
     timeLeft = POMODORO_DURATION;
     isBreak = false;
     updateTimerDisplay();
+    
+    // Reset button text
+    startTimerBtn.innerHTML = '<span class="icon">▶</span> Start';
+    startTimerBtn.classList.remove('pause-btn');
+    startTimerBtn.classList.add('start-btn');
+    
+    // Make sure button is set to start
+    startTimerBtn.removeEventListener('click', pauseTimer);
+    startTimerBtn.addEventListener('click', startTimer);
+    
+    // Save the reset state
+    saveTimerState();
+}
+
+function skipTimer() {
+    clearInterval(timer);
+    timer = null;
+    
+    if (isBreak) {
+        // Skip break, start next session
+        isBreak = false;
+        if (currentSession < totalSessions) {
+            currentSession++;
+            currentSessionDisplay.textContent = currentSession;
+            timeLeft = POMODORO_DURATION;
+            updateProgressBar();
+        } else {
+            // All sessions completed
+            completeTask();
+            return;
+        }
+    } else {
+        // Skip work session, start break
+        isBreak = true;
+        timeLeft = BREAK_DURATION;
+    }
+    
+    updateTimerDisplay();
+    
+    // Reset button text
+    startTimerBtn.innerHTML = '<span class="icon">▶</span> Start';
+    
+    // Make sure button is set to start
+    startTimerBtn.removeEventListener('click', pauseTimer);
+    startTimerBtn.addEventListener('click', startTimer);
+    
+    // Save the updated state after skipping
+    saveTimerState();
 }
 
 function updateTimerDisplay() {
     const minutes = Math.floor(timeLeft / 60);
     const seconds = timeLeft % 60;
+    
     minutesDisplay.textContent = minutes.toString().padStart(2, '0');
     secondsDisplay.textContent = seconds.toString().padStart(2, '0');
+    
+    // Update session type (Focus Session or Break)
+    const timerLabel = document.querySelector('.timer-label');
+    if (timerLabel) {
+        timerLabel.textContent = isBreak ? 'Break' : 'Focus Session';
+        timerLabel.style.color = isBreak ? 'var(--secondary-color)' : 'var(--primary-color)';
+    }
+    
+    // Update the circular progress indicator
+    const totalTime = isBreak ? BREAK_DURATION : POMODORO_DURATION;
+    const progress = timeLeft / totalTime; // Remaining time (0 to 1)
+    
+    // Check if we already have a timer outline element
+    let timerOutline = document.querySelector('.timer-outline');
+    if (!timerOutline) {
+        // Create the timer outline element
+        timerOutline = document.createElement('div');
+        timerOutline.className = 'timer-outline';
+        const timerCircle = document.querySelector('.timer-circle');
+        if (timerCircle) {
+            timerCircle.appendChild(timerOutline);
+        }
+    }
+    
+    // Reset and add break class if it's a break
+    timerOutline.className = 'timer-outline';
+    if (isBreak) {
+        timerOutline.classList.add('break');
+    }
+    
+    if (progress <= 0) {
+        // Timer completed - hide outline
+        timerOutline.style.display = 'none';
+    } else {
+        // Show outline
+        timerOutline.style.display = 'block';
+        
+        // Calculate the angle in degrees
+        const degrees = progress * 360;
+        
+        // Update clip-path to show only the remaining portion of the outline
+        timerOutline.style.clipPath = `
+            conic-gradient(
+                transparent ${degrees}deg,
+                black ${degrees}deg
+            )
+        `;
+    }
+    
+    // Update document title for tab
+    if (currentTask) {
+        document.title = `${minutesDisplay.textContent}:${secondsDisplay.textContent} - ${currentTask.name} - Pomodoro`;
+    } else {
+        document.title = `${minutesDisplay.textContent}:${secondsDisplay.textContent} - Pomodoro`;
+    }
+}
+
+function updateProgressBar() {
+    // Update the progress steps
+    if (progressSteps) {
+        for (let i = 0; i < progressSteps.length; i++) {
+            if (i < currentSession - 1) {
+                progressSteps[i].classList.add('completed');
+            } else {
+                progressSteps[i].classList.remove('completed');
+            }
+        }
+    }
+    
+    // Update progress labels
+    if (progressCompletedLabel && progressRemainingLabel) {
+        progressCompletedLabel.textContent = `${currentSession - 1} completed`;
+        progressRemainingLabel.textContent = `${totalSessions - (currentSession - 1)} remaining`;
+    }
 }
 
 // Timer Controls
 startTimerBtn.addEventListener('click', startTimer);
-pauseTimerBtn.addEventListener('click', pauseTimer);
 resetTimerBtn.addEventListener('click', resetTimer);
+skipTimerBtn.addEventListener('click', skipTimer);
 
 // View Toggle
 viewToggleButtons.forEach(button => {
@@ -899,9 +1615,9 @@ function renderCalendar() {
         });
         
         navContainer.innerHTML = `
-            <button id="prev-day">❮</button>
+            <button id="prev-day" title="Previous Day"><i class="nav-icon">◀</i></button>
             <span class="current-date">${dateStr}</span>
-            <button id="next-day">❯</button>
+            <button id="next-day" title="Next Day"><i class="nav-icon">▶</i></button>
             <button id="today-btn" class="today-button">Today</button>
         `;
         
@@ -946,9 +1662,9 @@ function renderCalendar() {
         });
         
         navContainer.innerHTML = `
-            <button id="prev-week">❮</button>
+            <button id="prev-week" title="Previous Week"><i class="nav-icon">◀</i></button>
             <span class="current-date">${weekStartStr} - ${weekEndStr}</span>
-            <button id="next-week">❯</button>
+            <button id="next-week" title="Next Week"><i class="nav-icon">▶</i></button>
             <button id="this-week-btn" class="today-button">This Week</button>
         `;
         
@@ -1063,24 +1779,7 @@ function renderDailyCalendar() {
         // Add click handlers to task blocks
         const taskBlocks = hourElement.querySelectorAll('.pomodoro-block:not(.completed)');
         taskBlocks.forEach(block => {
-            // Click to start task
-            block.addEventListener('click', (e) => {
-                // Only handle click if not dragging
-                if (!isDragging) {
-                    const taskId = block.dataset.taskId;
-                    if (taskId) {
-                        startTask(taskId);
-                        
-                        // Scroll to timer section
-                        document.querySelector('.timer-section').scrollIntoView({ 
-                            behavior: 'smooth',
-                            block: 'start'
-                        });
-                    }
-                }
-            });
-            
-            // Set up drag events
+            // Setup drag and drop (now includes click handler for options menu)
             setupDragAndDrop(block);
         });
         
@@ -1094,6 +1793,115 @@ function renderDailyCalendar() {
 let draggedElement = null;
 let isDragging = false;
 
+// Add a function to show a task options menu
+function showTaskOptionsMenu(e, taskId, block) {
+    e.stopPropagation();
+    
+    // Remove any existing menus
+    const existingMenu = document.querySelector('.task-options-menu');
+    if (existingMenu) {
+        existingMenu.remove();
+    }
+    
+    // Create menu
+    const menu = document.createElement('div');
+    menu.className = 'task-options-menu';
+    menu.innerHTML = `
+        <div class="option" data-action="start">Start</div>
+        <div class="option" data-action="edit">Edit</div>
+        <div class="option" data-action="delete">Delete</div>
+    `;
+    
+    // Position menu near the clicked element
+    const rect = block.getBoundingClientRect();
+    menu.style.position = 'absolute';
+    
+    // Check if we're on mobile
+    const isMobile = window.innerWidth <= 768;
+    
+    if (isMobile) {
+        // For mobile, position the menu in a more accessible location
+        menu.style.top = `${rect.top + window.scrollY - 10}px`;
+        menu.style.left = `${Math.min(rect.left + window.scrollX, window.innerWidth - 150)}px`;
+        menu.classList.add('mobile-menu');
+    } else {
+        // Desktop positioning
+        menu.style.top = `${rect.bottom + window.scrollY}px`;
+        menu.style.left = `${rect.left + window.scrollX}px`;
+    }
+    
+    // Add click handlers
+    menu.addEventListener('click', (e) => {
+        const action = e.target.dataset.action;
+        
+        // First remove the menu regardless of action
+        menu.remove();
+        
+        if (action === 'start') {
+            startTask(taskId);
+            // Scroll to timer section
+            document.querySelector('.timer-section').scrollIntoView({ 
+                behavior: 'smooth',
+                block: 'start'
+            });
+        } else if (action === 'edit') {
+            // For mobile view, immediately open the sidebar before editing
+            if (isMobile && sidebar) {
+                // First activate the sidebar
+                sidebar.classList.add('active');
+                
+                // Show edit indicator in the sidebar header
+                const task = tasks.find(task => task.id === taskId);
+                if (task) {
+                    // Add a visual indicator that we're in edit mode
+                    const editIndicator = document.createElement('div');
+                    editIndicator.className = 'edit-mode-indicator';
+                    editIndicator.textContent = 'Editing Task: ' + task.name;
+                    
+                    // Remove existing indicator if any
+                    const existingIndicator = document.querySelector('.edit-mode-indicator');
+                    if (existingIndicator) {
+                        existingIndicator.remove();
+                    }
+                    
+                    // Add indicator to the sidebar
+                    const sidebarHeader = document.querySelector('.sidebar-header');
+                    if (sidebarHeader) {
+                        sidebarHeader.appendChild(editIndicator);
+                        
+                        // Add animation to make it more noticeable
+                        editIndicator.style.animation = 'pulse 1s infinite';
+                    }
+                }
+                
+                // Give a small delay for sidebar animation, then edit
+                setTimeout(() => {
+                    editTask(taskId);
+                }, 100);
+            } else {
+                // For desktop, just edit directly
+                editTask(taskId);
+            }
+        } else if (action === 'delete') {
+            if (confirm('Are you sure you want to delete this task?')) {
+                deleteTask(taskId);
+            }
+        }
+    });
+    
+    // Close menu when clicking elsewhere
+    document.addEventListener('click', function closeMenu(e) {
+        if (!menu.contains(e.target)) {
+            menu.remove();
+            document.removeEventListener('click', closeMenu);
+        }
+    });
+    
+    // Add to document
+    document.body.appendChild(menu);
+}
+
+// Update the setupDragAndDrop function to include the context menu
 function setupDragAndDrop(element) {
     // Add a visual drag handle for better usability
     const dragHandle = document.createElement('div');
@@ -1102,15 +1910,31 @@ function setupDragAndDrop(element) {
     dragHandle.title = 'Drag to reschedule';
     element.appendChild(dragHandle);
     
+    // Add click handler for options menu
+    element.addEventListener('click', (e) => {
+        // Only handle click if not dragging
+        if (!isDragging) {
+            const taskId = element.dataset.taskId;
+            if (taskId) {
+                showTaskOptionsMenu(e, taskId, element);
+            }
+        }
+    });
+    
     // Setup touch events for mobile
     let touchStartX, touchStartY;
+    let touchStartTime;
+    let touchTimeout;
+    let movedDistance = 0;
     
     element.addEventListener('touchstart', (e) => {
         touchStartX = e.touches[0].clientX;
         touchStartY = e.touches[0].clientY;
+        touchStartTime = Date.now();
+        movedDistance = 0;
         
         // Add a timeout to distinguish between tap and long press
-        element.touchTimeout = setTimeout(() => {
+        touchTimeout = setTimeout(() => {
             console.log('Long press detected - starting drag mode');
             element.classList.add('touch-dragging');
             element.setAttribute('aria-grabbed', 'true');
@@ -1126,6 +1950,11 @@ function setupDragAndDrop(element) {
     }, { passive: false });
     
     element.addEventListener('touchmove', (e) => {
+        // Calculate distance moved for tap vs. drag distinction
+        const deltaX = e.touches[0].clientX - touchStartX;
+        const deltaY = e.touches[0].clientY - touchStartY;
+        movedDistance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+        
         if (!element.classList.contains('touch-dragging')) return;
         
         // Prevent scrolling while dragging
@@ -1134,19 +1963,19 @@ function setupDragAndDrop(element) {
         const touchX = e.touches[0].clientX;
         const touchY = e.touches[0].clientY;
         
-        // Calculate the distance moved
-        const deltaX = touchX - touchStartX;
-        const deltaY = touchY - touchStartY;
+        // Calculate the distance moved for dragging
+        const deltaX2 = touchX - touchStartX;
+        const deltaY2 = touchY - touchStartY;
         
         // Update element position
         element.style.position = 'absolute';
-        element.style.top = `${element.touchOriginalTop + deltaY}px`;
-        element.style.left = `${element.touchOriginalLeft + deltaX}px`;
+        element.style.top = `${element.touchOriginalTop + deltaY2}px`;
+        element.style.left = `${element.touchOriginalLeft + deltaX2}px`;
         element.style.zIndex = '1000';
         
         // Find potential drop targets
         const elementsUnderTouch = document.elementsFromPoint(touchX, touchY);
-        const dropTarget = elementsUnderTouch.find(el => el.classList.contains('hour-block'));
+        const dropTarget = elementsUnderTouch.find(el => el.classList.contains('hour-blocks'));
         
         // Highlight potential drop target
         document.querySelectorAll('.drop-target-hover').forEach(el => {
@@ -1160,7 +1989,11 @@ function setupDragAndDrop(element) {
     
     element.addEventListener('touchend', (e) => {
         // Clear the timeout to prevent drag mode
-        clearTimeout(element.touchTimeout);
+        clearTimeout(touchTimeout);
+        
+        // Calculate timing for tap vs. long press
+        const touchEndTime = Date.now();
+        const touchDuration = touchEndTime - touchStartTime;
         
         // If we're in drag mode
         if (element.classList.contains('touch-dragging')) {
@@ -1169,7 +2002,7 @@ function setupDragAndDrop(element) {
             
             // Find the drop target
             const elementsUnderTouch = document.elementsFromPoint(touchX, touchY);
-            const dropTarget = elementsUnderTouch.find(el => el.classList.contains('hour-block'));
+            const dropTarget = elementsUnderTouch.find(el => el.classList.contains('hour-blocks'));
             
             if (dropTarget) {
                 // Get the task ID and session index from the dragged element
@@ -1180,7 +2013,7 @@ function setupDragAndDrop(element) {
                 const targetHour = parseInt(dropTarget.dataset.hour);
                 const targetDate = new Date(dropTarget.dataset.date);
                 
-                if (taskId && targetHour && targetDate) {
+                if (taskId && targetHour != null && targetDate) {
                     rescheduleTask(taskId, sessionIndex, targetHour, targetDate);
                 }
             }
@@ -1199,6 +2032,14 @@ function setupDragAndDrop(element) {
             document.querySelectorAll('.drop-target-hover').forEach(el => {
                 el.classList.remove('drop-target-hover');
             });
+        } else {
+            // This was a tap, not a drag - show the menu if it was a short tap without much movement
+            if (touchDuration < 300 && movedDistance < 10) {
+                const taskId = element.dataset.taskId;
+                if (taskId) {
+                    showTaskOptionsMenu(e, taskId, element);
+                }
+            }
         }
     }, { passive: false });
     
@@ -1261,19 +2102,19 @@ function setupDropTarget(element) {
 
 // Reschedule a task's sessions to a new time
 function rescheduleTask(taskId, sessionIndex, targetHour, targetDate) {
-    console.log(`Rescheduling task ${taskId}, session ${sessionIndex} to ${targetDate.toDateString()} at ${targetHour}:00`);
+    console.log(`🔥 RESCHEDULE: Rescheduling task ${taskId}, session ${sessionIndex} to ${targetDate.toDateString()} at ${targetHour}:00`);
     
     // Find the task
     const task = tasks.find(t => t.id === taskId);
     if (!task) {
-        console.error('Task not found:', taskId);
+        console.error('🔥 RESCHEDULE ERROR: Task not found:', taskId);
         return;
     }
     
     // Get the original session
     const originalSession = task.sessions[sessionIndex];
     if (!originalSession) {
-        console.error('Session not found:', sessionIndex);
+        console.error('🔥 RESCHEDULE ERROR: Session not found:', sessionIndex);
         return;
     }
 
@@ -1320,7 +2161,7 @@ function rescheduleTask(taskId, sessionIndex, targetHour, targetDate) {
     const hoursDiff = targetHour - originalHour;
     const totalMillisecondsDiff = (daysDiff * 24 + hoursDiff) * 60 * 60 * 1000;
     
-    console.log(`Time difference: ${daysDiff} days, ${hoursDiff} hours, total: ${totalMillisecondsDiff} ms`);
+    console.log(`🔥 RESCHEDULE: Time difference: ${daysDiff} days, ${hoursDiff} hours, total: ${totalMillisecondsDiff} ms`);
     
     // Update all subsequent sessions with the same time shift
     for (let i = sessionIndex; i < task.sessions.length; i++) {
@@ -1339,13 +2180,38 @@ function rescheduleTask(taskId, sessionIndex, targetHour, targetDate) {
             session.startTime = newStart;
             session.endTime = newEnd;
             
-            console.log(`Moved session ${i} from ${oldStart.toLocaleString()} to ${newStart.toLocaleString()}`);
+            console.log(`🔥 RESCHEDULE: Moved session ${i} from ${oldStart.toLocaleString()} to ${newStart.toLocaleString()}`);
         }
     }
     
-    // Save and re-render
-    saveTasks();
+    // Save to localStorage first as backup
+    try {
+        localStorage.setItem('tasks', JSON.stringify(tasks));
+        console.log('🔥 RESCHEDULE: Changes saved to localStorage');
+    } catch (e) {
+        console.error('🔥 RESCHEDULE ERROR: Failed to save to localStorage:', e);
+    }
+    
+    // Then save to Firestore using promise
+    if (currentUser) {
+        console.log('🔥 RESCHEDULE: Saving changes to Firestore...');
+        saveTasks()
+            .then(() => {
+                console.log('🔥 RESCHEDULE: Changes saved successfully to Firestore');
+            })
+            .catch(error => {
+                console.error('🔥 RESCHEDULE ERROR: Failed to save to Firestore:', error);
+                // Try again after a short delay
+                setTimeout(() => saveTasks(), 2000);
+            });
+    } else {
+        console.warn('🔥 RESCHEDULE: User not logged in, skipping Firestore save');
+    }
+    
+    // Re-render
     renderCalendar();
+    
+    showNotification('Task rescheduled successfully!');
 }
 
 // Get tasks for a specific hour
@@ -1492,23 +2358,19 @@ function renderWeeklyView() {
                 }
             });
             
-            // Handle task start
+            // Also add click handler to the add button
+            const addButton = cell.querySelector('.add-task-hour-btn');
+            if (addButton) {
+                addButton.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    handleHourClick(hour, day);
+                });
+            }
+            
+            // Handle task actions
             const taskBlocks = cell.querySelectorAll('.pomodoro-block:not(.completed)');
             taskBlocks.forEach(block => {
-                block.addEventListener('click', (e) => {
-                    if (!isDragging) {
-                        const taskId = block.dataset.taskId;
-                        if (taskId) {
-                            startTask(taskId);
-                            document.querySelector('.timer-section').scrollIntoView({ 
-                                behavior: 'smooth',
-                                block: 'start'
-                            });
-                        }
-                    }
-                });
-                
-                // Set up drag events
+                // Setup drag and drop (now includes click handler for options menu)
                 setupDragAndDrop(block);
             });
             
@@ -1688,8 +2550,8 @@ renderTasks();
 function resetAndCreateTestTasks() {
     if (currentUser) {
         // Clear tasks in Firestore
-        db.collection('users').doc(currentUser.uid).collection('tasks').doc('taskList')
-            .delete()
+        db.collection('users').doc(currentUser.uid)
+            .set({ tasks: [] }, { merge: true })
             .then(() => {
                 console.log('Firestore tasks deleted successfully');
                 tasks = [];
@@ -1714,7 +2576,7 @@ if (tasks.length === 0) {
     console.log("No tasks found, adding test data generation button");
     addTestDataButton();
 } else {
-renderCalendar(); 
+    renderCalendar();
     // Inspect existing tasks
     inspectTasks();
 }
@@ -1741,19 +2603,6 @@ function addTestDataButton() {
         console.log('Test data button added for development');
     }
 }
-
-// If no tasks exist and we're in a development environment, add a test button
-if (tasks.length === 0) {
-    console.log("No tasks found, adding test data generation button");
-    addTestDataButton();
-} else {
-    renderCalendar();
-    // Inspect existing tasks
-    inspectTasks();
-}
-
-// For development purposes only - remove in production
-// resetAndCreateTestTasks();
 
 // Add a debug function to check Firebase connection
 function debugFirebaseConnection() {
@@ -1978,19 +2827,380 @@ renderTasks = (function(orig) {
 // Free timer option
 const freeTimerBtn = document.createElement('button');
 freeTimerBtn.textContent = 'Start Free Timer';
-freeTimerBtn.style.marginLeft = '1rem';
-freeTimerBtn.style.background = '#4ecdc4';
-freeTimerBtn.style.color = 'white';
-freeTimerBtn.style.border = 'none';
-freeTimerBtn.style.borderRadius = '8px';
-freeTimerBtn.style.padding = '0.8rem 1.5rem';
-freeTimerBtn.style.cursor = 'pointer';
+freeTimerBtn.className = 'timer-btn free-timer-btn';
 freeTimerBtn.addEventListener('click', () => {
     currentTask = null;
     currentTaskName.textContent = 'Free Timer';
     currentSessionDisplay.textContent = '1';
     totalSessionsDisplay.textContent = '1';
-    resetTimer();
+    
+    // Reset and start timer
+    clearInterval(timer);
+    timeLeft = POMODORO_DURATION;
+    isBreak = false;
+    
+    // Update display before starting
+    updateTimerDisplay();
+    updateProgressBar();
+    
+    // Start the timer
     startTimer();
 });
-document.querySelector('.timer-controls').appendChild(freeTimerBtn); 
+document.querySelector('.timer-controls').appendChild(freeTimerBtn);
+
+// Add some CSS for the options menu
+const styleTag = document.createElement('style');
+styleTag.innerHTML = `
+.task-options-menu {
+    background: #2a2a2a;
+    border-radius: 8px;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+    z-index: 1000;
+}
+.task-options-menu .option {
+    padding: 8px 16px;
+    cursor: pointer;
+    white-space: nowrap;
+}
+.task-options-menu .option:hover {
+    background: #444;
+}
+`;
+document.head.appendChild(styleTag);
+
+// Enhanced automatic task saving and synchronization
+document.addEventListener('DOMContentLoaded', () => {
+    // Initialize task data synchronization status tracker
+    window.lastSavedTasksHash = '';
+    
+    // Function to calculate a simple hash of tasks for change detection
+    function calculateTasksHash() {
+        try {
+            return JSON.stringify(tasks).length + '-' + tasks.length;
+        } catch (e) {
+            return Date.now().toString();
+        }
+    }
+    
+    // Function to check if tasks have changed and need saving
+    function checkAndSaveTasks() {
+        if (!currentUser) return Promise.resolve();
+        
+        const currentHash = calculateTasksHash();
+        
+        // Only save if tasks have changed since last save
+        if (currentHash !== window.lastSavedTasksHash) {
+            console.log('🔄 AUTO SYNC: Tasks have changed, saving automatically...');
+            window.lastSavedTasksHash = currentHash;
+            
+            return saveTasks().then(() => {
+                console.log('🔄 AUTO SYNC: Tasks saved automatically');
+            }).catch(error => {
+                console.error('🔄 AUTO SYNC ERROR:', error);
+                // Reset hash so we'll try again
+                window.lastSavedTasksHash = '';
+            });
+        } else {
+            console.log('🔄 AUTO SYNC: No changes detected, skipping save');
+            return Promise.resolve();
+        }
+    }
+    
+    // Save whenever the page visibility changes (user tabs back in)
+    window.addEventListener('visibilitychange', () => {
+        // When user returns to the tab, force a refresh of data
+        if (document.visibilityState === 'visible' && currentUser) {
+            console.log('🔄 AUTO SYNC: Page visibility changed to visible, refreshing data...');
+            // Check if we need to save any changes first
+            checkAndSaveTasks().then(() => {
+                // Then refresh from Firestore
+                // Unsubscribe from current listener if any
+                if (window.firestoreTaskListener) {
+                    window.firestoreTaskListener();
+                    window.firestoreTaskListener = null;
+                }
+                
+                // Reload tasks with a fresh listener
+                loadTasks();
+            });
+        } else if (document.visibilityState === 'hidden' && currentUser) {
+            // Save when the user leaves the tab
+            console.log('🔄 AUTO SYNC: Page visibility changed to hidden, saving data...');
+            checkAndSaveTasks();
+        }
+    });
+    
+    // Also save when user is about to leave the page
+    window.addEventListener('beforeunload', () => {
+        if (currentUser) {
+            console.log('🔄 AUTO SYNC: Page unloading, saving changes...');
+            // Sync to localStorage for sure
+            try {
+                localStorage.setItem('tasks', JSON.stringify(tasks));
+            } catch (e) {
+                console.error('Failed to save to localStorage on unload:', e);
+            }
+            
+            // Try to save to Firestore (may not complete if page closes too quickly)
+            saveTasks();
+        }
+    });
+    
+    // Run auto-save frequently
+    const autoSaveInterval = setInterval(() => {
+        if (currentUser) {
+            checkAndSaveTasks();
+        }
+    }, 5000); // Check every 5 seconds
+    
+    // Also periodically verify data with Firestore
+    setInterval(() => {
+        if (currentUser) {
+            console.log('🔄 AUTO SYNC: Performing verification check...');
+            
+            // Verify data in Firestore matches our local data
+            db.collection('users').doc(currentUser.uid).get()
+                .then(doc => {
+                    if (doc.exists && doc.data().tasks) {
+                        console.log('🔄 AUTO SYNC: Verification found', doc.data().tasks.length, 'tasks in Firestore');
+                        
+                        // Check if the number of tasks matches
+                        if (doc.data().tasks.length !== tasks.length) {
+                            console.log('🔄 AUTO SYNC: Task count mismatch, forcing save...');
+                            saveTasks();
+                        }
+                    } else {
+                        console.error('🔄 AUTO SYNC: Verification failed - no tasks found in Firestore');
+                        // Force a save if no tasks found
+                        saveTasks();
+                    }
+                })
+                .catch(error => {
+                    console.error('🔄 AUTO SYNC ERROR:', error);
+                });
+        }
+    }, 30 * 1000); // Check every 30 seconds
+    
+    // Add logout event listener
+    const logoutButton = document.getElementById('logout-button');
+    if (logoutButton) {
+        logoutButton.addEventListener('click', async () => {
+            console.log('Logging out user...');
+            
+            // Clear auto-save interval
+            clearInterval(autoSaveInterval);
+            
+            // Save any unsaved changes before logging out
+            if (currentUser) {
+                try {
+                    console.log('🔥 LOGOUT: Saving tasks before logout...');
+                    await saveTasks();
+                    console.log('🔥 LOGOUT: Tasks saved successfully before logout');
+                } catch (error) {
+                    console.error('🔥 LOGOUT ERROR: Failed to save tasks before logout:', error);
+                    // Continue with logout even if save fails
+                }
+            }
+            
+            // Clean up Firestore listener if it exists
+            if (window.firestoreTaskListener) {
+                window.firestoreTaskListener();
+                console.log('🔥 FIREBASE: Unsubscribed from Firestore listener');
+                window.firestoreTaskListener = null;
+            }
+            
+            try {
+                await firebase.auth().signOut();
+                console.log('User successfully logged out');
+                // The redirect will happen automatically due to the auth state change listener
+            } catch (error) {
+                console.error('Error signing out:', error);
+                alert('Error signing out. Please try again.');
+            }
+        });
+    }
+    
+    // Set up periodic task refresh to handle any sync issues
+    setInterval(() => {
+        if (currentUser) {
+            console.log('🔥 FIREBASE: Performing periodic task refresh...');
+            // Force a refresh by temporarily unsubscribing and resubscribing
+            if (window.firestoreTaskListener) {
+                window.firestoreTaskListener();
+                loadTasks(); // This will create a new listener
+            }
+        }
+    }, 60 * 1000); // Refresh every 60 seconds
+}); 
+
+// Add a robust direct Firebase test and debug indicator
+document.addEventListener('DOMContentLoaded', () => {
+    // Never show debug, completely disabled
+    const isDebugEnabled = false;
+    
+    // Debug functions will still log to console but not display visually
+    const debugStatusEl = document.createElement('div');
+    
+    // Helper function to retry an operation - kept for manual testing
+    async function retryOperation(operation, maxRetries = 3, delay = 1000) {
+        let lastError;
+        
+        for (let attempt = 1; attempt <= maxRetries; attempt++) {
+            try {
+                return await operation();
+            } catch (error) {
+                lastError = error;
+                console.log(`Attempt ${attempt} failed: ${error.message}`);
+                
+                if (attempt < maxRetries) {
+                    // Wait before next retry
+                    await new Promise(resolve => setTimeout(resolve, delay));
+                    // Increase delay for next attempt
+                    delay *= 1.5;
+                }
+            }
+        }
+        
+        throw lastError;
+    }
+    
+    // Function to directly test Firebase Firestore - available for manual testing
+    window.testFirestore = async function() {
+        // Never show debug elements
+        return;
+    }
+}); 
+
+// Theme toggle functionality
+function setTheme(isDark) {
+    document.body.dataset.theme = isDark ? 'dark' : 'light';
+    localStorage.setItem('theme', isDark ? 'dark' : 'light');
+    
+    // Update all toggle switches
+    const themeSwitch = document.getElementById('theme-switch');
+    const mobileThemeSwitch = document.getElementById('mobile-theme-switch');
+    
+    if (themeSwitch) {
+        themeSwitch.checked = isDark;
+    }
+    
+    if (mobileThemeSwitch) {
+        mobileThemeSwitch.checked = isDark;
+    }
+}
+
+// Listen for theme switch changes when DOM is loaded
+document.addEventListener('DOMContentLoaded', function() {
+    const themeSwitch = document.getElementById('theme-switch');
+    const mobileThemeSwitch = document.getElementById('mobile-theme-switch');
+    
+    // Add listeners to both switches
+    if (themeSwitch) {
+        themeSwitch.addEventListener('change', function() {
+            setTheme(this.checked);
+        });
+    }
+    
+    if (mobileThemeSwitch) {
+        mobileThemeSwitch.addEventListener('change', function() {
+            setTheme(this.checked);
+        });
+    }
+    
+    // Initialize theme
+    const savedTheme = localStorage.getItem('theme');
+    if (savedTheme) {
+        setTheme(savedTheme === 'dark');
+    } else {
+        // Default to dark theme
+        setTheme(true);
+    }
+}); 
+
+// Complete task function
+function completeTask() {
+    // Check if completing a task or just free sessions
+    if (currentTask) {
+        console.log('Completing task:', currentTask.name);
+        
+        // Find the task in our tasks array
+        const task = tasks.find(t => t.id === currentTask.id);
+        if (!task) {
+            console.error('Task not found in tasks array');
+            return;
+        }
+        
+        // Update completed sessions
+        task.completedSessions = Math.min(task.totalSessions, task.completedSessions + currentSession);
+        
+        // Mark sessions as completed
+        for (let i = 0; i < currentSession; i++) {
+            if (task.sessions[i]) {
+                task.sessions[i].completed = true;
+            }
+        }
+        
+        // Add journey points for task completion if all sessions are done
+        if (task.completedSessions >= task.totalSessions && window.journeyTracker) {
+            window.journeyTracker.addTaskCompletion();
+        }
+        
+        // Save to localStorage and Firestore
+        localStorage.setItem('tasks', JSON.stringify(tasks));
+        
+        if (currentUser) {
+            saveTasks()
+                .then(() => {
+                    console.log('Task saved successfully to Firestore');
+                })
+                .catch(error => {
+                    console.error('Failed to save to Firestore:', error);
+                    setTimeout(() => saveTasks(), 2000);
+                });
+        }
+        
+        // Show notification
+        const audio = new Audio('https://actions.google.com/sounds/v1/notifications/crisp_success_chime.ogg');
+        audio.play().catch(e => console.log('Audio play failed:', e));
+        
+        alert(`Task "${currentTask.name}" completed!`);
+    } else {
+        // This was a free session without a task
+        console.log('Completing free pomodoro sessions');
+        
+        // Show notification
+        const audio = new Audio('https://actions.google.com/sounds/v1/notifications/crisp_success_chime.ogg');
+        audio.play().catch(e => console.log('Audio play failed:', e));
+        
+        alert(`Completed ${currentSession} pomodoro sessions!`);
+    }
+    
+    // Reset timer display
+    resetTimer();
+    
+    // Reset current task
+    currentTask = null;
+    currentTaskName.textContent = 'No task selected';
+    
+    // Reset session counter
+    currentSession = 1;
+    totalSessions = 4;
+    currentSessionDisplay.textContent = currentSession;
+    totalSessionsDisplay.textContent = totalSessions;
+    updateProgressBar();
+    
+    // Clear the timer state since the task is completed
+    localStorage.removeItem('timerState');
+    sessionStorage.removeItem('timerState');
+    
+    // Re-render UI
+    renderTasks();
+    renderCalendar();
+}
+
+// Helper function to format time for display
+function formatTime(seconds) {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+}

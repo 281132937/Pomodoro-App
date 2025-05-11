@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pomodoro Scheduler - Your Journey</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="css/journey.css">
+  </head>
+  <body>
+    <button class="mobile-menu-toggle" id="mobile-menu-toggle">☰</button>
+    
+    <!-- Mobile Theme Toggle -->
+    <div class="mobile-theme-toggle" id="mobile-theme-toggle">
+      <div class="theme-toggle">
+        <input type="checkbox" id="mobile-theme-switch">
+        <label for="mobile-theme-switch">
+          <div class="toggle-handle"></div>
+        </label>
+      </div>
+    </div>
+    
+    <div class="app-container">
+      <!-- Sidebar -->
+      <aside class="sidebar">
+        <div class="sidebar-header">
+          <h1>Pomodoro Scheduler</h1>
+          <!-- Dark mode toggle -->
+          <div class="theme-toggle">
+            <input type="checkbox" id="theme-switch">
+            <label for="theme-switch">
+              <div class="toggle-handle"></div>
+            </label>
+          </div>
+        </div>
+        
+        <!-- Navigation Links -->
+        <nav class="sidebar-nav">
+          <ul>
+            <li><a href="app.html">Dashboard</a></li>
+            <li><a href="journey.html" class="active">Your Journey</a></li>
+          </ul>
+        </nav>
+        
+        <!-- User Stats Summary -->
+        <div class="user-stats-summary">
+          <h2>Your Stats</h2>
+          <div class="stats-container">
+            <div class="stat-item">
+              <span class="stat-value" id="total-points">0</span>
+              <span class="stat-label">Points</span>
+            </div>
+            <div class="stat-item">
+              <span class="stat-value" id="current-streak">0</span>
+              <span class="stat-label">Day Streak</span>
+            </div>
+            <div class="stat-item">
+              <span class="stat-value" id="total-badges">0</span>
+              <span class="stat-label">Badges</span>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Logout Button -->
+        <div class="logout-container">
+          <button id="logout-button" class="logout-button">Logout</button>
+        </div>
+      </aside>
+
+      <!-- Main Content -->
+      <main class="main-content journey-content">
+        <!-- Header with user's level -->
+        <div class="journey-header">
+          <h1>Your Productivity Journey</h1>
+          <div class="level-indicator">
+            <div class="level-badge">
+              <span id="user-level">1</span>
+            </div>
+            <div class="level-info">
+              <div class="level-title">Level <span id="level-number">1</span>: <span id="level-name">Beginner</span></div>
+              <div class="level-progress-container">
+                <div class="level-progress" id="level-progress-bar"></div>
+                <span class="level-progress-text"><span id="level-progress">0</span>/<span id="level-target">100</span> points to next level</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Points Section -->
+        <section class="journey-section">
+          <h2>Points History</h2>
+          <div class="points-summary">
+            <div class="points-card">
+              <div class="points-value" id="total-points-large">0</div>
+              <div class="points-label">Total Points</div>
+            </div>
+            <div class="points-card">
+              <div class="points-value" id="points-today">0</div>
+              <div class="points-label">Points Today</div>
+            </div>
+            <div class="points-card">
+              <div class="points-value" id="points-this-week">0</div>
+              <div class="points-label">Points This Week</div>
+            </div>
+          </div>
+          
+          <div class="points-chart-container">
+            <h3>Points Earned (Last 30 Days)</h3>
+            <div class="points-chart" id="points-chart">
+              <!-- Points chart will be rendered here -->
+              <div class="chart-placeholder">Loading chart data...</div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Badges Section -->
+        <section class="journey-section">
+          <h2>Your Badges</h2>
+          <div class="badges-container" id="badges-container">
+            <!-- Badges will be dynamically added here -->
+          </div>
+        </section>
+
+        <!-- Streak Section -->
+        <section class="journey-section">
+          <h2>Consistency Streak</h2>
+          <div class="streak-summary">
+            <div class="streak-card">
+              <div class="streak-value" id="current-streak-large">0</div>
+              <div class="streak-label">Current Streak</div>
+            </div>
+            <div class="streak-card">
+              <div class="streak-value" id="longest-streak">0</div>
+              <div class="streak-label">Longest Streak</div>
+            </div>
+            <div class="streak-card">
+              <div class="streak-value" id="total-active-days">0</div>
+              <div class="streak-label">Active Days</div>
+            </div>
+          </div>
+          
+          <div class="streak-calendar-container">
+            <h3>Your Activity Calendar</h3>
+            <div class="streak-calendar" id="streak-calendar">
+              <!-- Calendar will be rendered here -->
+            </div>
+          </div>
+        </section>
+
+        <!-- Statistics Section -->
+        <section class="journey-section">
+          <h2>Productivity Stats</h2>
+          <div class="stats-grid">
+            <div class="stat-card">
+              <div class="stat-icon">⏱️</div>
+              <div class="stat-title">Total Focus Time</div>
+              <div class="stat-value" id="total-focus-time">0h 0m</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-icon">🔄</div>
+              <div class="stat-title">Total Sessions</div>
+              <div class="stat-value" id="total-sessions-completed">0</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-icon">✅</div>
+              <div class="stat-title">Tasks Completed</div>
+              <div class="stat-value" id="total-tasks-completed">0</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-icon">🏆</div>
+              <div class="stat-title">Perfect Days</div>
+              <div class="stat-value" id="perfect-days">0</div>
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
+     
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-analytics-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+    <script src="firebase-config.js"></script>
+    
+    <!-- Auth check -->
+    <script>
+      document.addEventListener('DOMContentLoaded', function() {
+        // Hide everything initially
+        document.body.style.display = 'none';
+        
+        firebase.auth().onAuthStateChanged(function(user) {
+          if (user) {
+            // User is signed in, show the app
+            document.body.style.display = '';
+            console.log("User authenticated:", user.email);
+          } else {
+            // No user is signed in, redirect to landing page
+            console.log("No user authenticated, redirecting to landing page");
+            window.location.href = 'landing.html';
+          }
+        });
+        
+        // Fallback in case auth check takes too long
+        setTimeout(function() {
+          if (document.body.style.display === 'none') {
+            console.log("Auth check timeout, redirecting to landing page");
+            window.location.href = 'landing.html';
+          }
+        }, 5000);
+      });
+    </script>
+    
+    <!-- Chart library for visualizations -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <!-- App and Journey JavaScript -->
+    <script src="js/journey.js"></script>
+    
+    <!-- Cross-page navigation handling -->
+    <script>
+      document.addEventListener('DOMContentLoaded', function() {
+        // Handle navigation back to app.html
+        const appLink = document.querySelector('a[href="app.html"]');
+        if (appLink) {
+          appLink.addEventListener('click', function(e) {
+            // Store a flag that we're intentionally navigating between app pages
+            sessionStorage.setItem('intentionalNavigation', 'true');
+            
+            // Let the navigation proceed normally
+          });
+        }
+        
+        // Check if we came from app.html with a running timer
+        const timerState = sessionStorage.getItem('timerState');
+        if (timerState) {
+          // If there's a timer state, update the document title to show it
+          try {
+            const state = JSON.parse(timerState);
+            if (state.isActive) {
+              // Format the time for the title
+              const minutes = Math.floor(state.timeLeft / 60);
+              const seconds = state.timeLeft % 60;
+              const formattedTime = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+              
+              // Update document title to show timer is still running
+              document.title = `${formattedTime} - Journey - Pomodoro`;
+              
+              // Set up a timer to update the title every second
+              const titleInterval = setInterval(() => {
+                // Get the latest timer state
+                const latestState = sessionStorage.getItem('timerState');
+                if (latestState) {
+                  try {
+                    const parsed = JSON.parse(latestState);
+                    if (parsed.isActive) {
+                      // Calculate time passed since timestamp
+                      const elapsed = Math.floor((Date.now() - parsed.timestamp) / 1000);
+                      const currentTimeLeft = Math.max(0, parsed.timeLeft - elapsed);
+                      
+                      // Format the time for title
+                      const min = Math.floor(currentTimeLeft / 60);
+                      const sec = currentTimeLeft % 60;
+                      const time = `${min.toString().padStart(2, '0')}:${sec.toString().padStart(2, '0')}`;
+                      
+                      // Update title
+                      document.title = `${time} - Journey - Pomodoro`;
+                    } else {
+                      // Timer is no longer active
+                      clearInterval(titleInterval);
+                      document.title = 'Pomodoro Scheduler - Your Journey';
+                    }
+                  } catch (e) {
+                    console.error('Error parsing timer state:', e);
+                  }
+                }
+              }, 1000);
+            }
+          } catch (e) {
+            console.error('Error handling timer state in journey page:', e);
+          }
+        }
+      });
+    </script>
+  </body>
+</html> 

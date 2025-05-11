@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Pomodoro Scheduler - Welcome</title>
+    <title>Pomodoro Scheduler - Master Your Productivity</title>
     <link rel="stylesheet" href="css/landing.css">
     <!-- Preload the app for faster transitions -->
     <link rel="prefetch" href="app.html">
@@ -14,6 +14,12 @@
         <nav class="navbar">
             <div class="logo">Pomodoro Scheduler</div>
             <div class="nav-buttons">
+                <div class="theme-toggle">
+                    <input type="checkbox" id="theme-toggle-landing">
+                    <label for="theme-toggle-landing">
+                        <span class="toggle-handle"></span>
+                    </label>
+                </div>
                 <button class="sign-in-btn" onclick="window.location.href='login.html'">Sign In</button>
                 <button class="get-started-btn" onclick="window.location.href='login.html#signup'">Get Started</button>
             </div>
@@ -22,28 +28,28 @@
         <main class="hero">
             <div class="hero-content">
                 <h1>Master Your Time, Achieve More</h1>
-                <p class="hero-subtitle">The ultimate Pomodoro timer app that helps you stay focused, organized, and productive.</p>
+                <p class="hero-subtitle">The ultimate Pomodoro timer app that helps you stay focused, organize tasks, and visualize your productivity journey.</p>
                 
                 <div class="features">
                     <div class="feature">
                         <span class="icon">⏱️</span>
                         <h3>Focus Timer</h3>
-                        <p>25-minute focused work sessions with automatic breaks</p>
+                        <p>Customizable Pomodoro sessions with automatic breaks to maximize productivity</p>
                     </div>
                     <div class="feature">
                         <span class="icon">📊</span>
                         <h3>Task Management</h3>
-                        <p>Organize tasks and track completion with visual progress</p>
+                        <p>Organize tasks and track completion with visual progress indicators</p>
                     </div>
                     <div class="feature">
                         <span class="icon">📅</span>
                         <h3>Visual Calendar</h3>
-                        <p>See your day or week at a glance with intuitive scheduling</p>
+                        <p>Daily and weekly views to plan your work and see upcoming tasks</p>
                     </div>
                     <div class="feature">
                         <span class="icon">☁️</span>
                         <h3>Cloud Sync</h3>
-                        <p>Your data syncs across devices with secure Firebase storage</p>
+                        <p>Your data automatically syncs across devices with secure Firebase storage</p>
                     </div>
                 </div>
                 
@@ -55,33 +61,227 @@
             
             <div class="hero-image">
                 <div class="app-preview">
-                    <img src="https://placehold.co/600x400/ff6b6b/fff?text=Pomodoro+App" alt="Pomodoro App Preview">
+                    <img src="https://placehold.co/600x400/3C6E71/FFFFFF?text=Pomodoro+App+Preview" alt="Pomodoro App Preview">
+                    <div class="floating-element timer-floating">
+                        <div class="timer-circle">
+                            <div class="timer-progress"></div>
+                            <div class="timer-text">18:45</div>
+                        </div>
+                        <div class="timer-label">Focus Session</div>
+                    </div>
+                    <div class="floating-element notification-floating">
+                        <div class="notification-icon">🎉</div>
+                        <div class="notification-text">Session complete! +25 points</div>
+                    </div>
                 </div>
             </div>
         </main>
 
-        <section class="how-it-works">
-            <h2>How Pomodoro Technique Works</h2>
-            <div class="steps">
-                <div class="step">
-                    <div class="step-number">1</div>
-                    <h3>Choose a Task</h3>
-                    <p>Select what you want to work on and add it to your schedule</p>
+        <!-- Feature Showcase: Spotify Integration -->
+        <section class="feature-showcase spotify-showcase">
+            <div class="feature-content">
+                <div class="feature-badge">Integrated Music</div>
+                <h2>Focus Better with <span class="accent-text">Spotify</span> Integration</h2>
+                <p>Choose from curated playlists or connect your own Spotify account to create the perfect focus environment. Research shows that the right music can boost productivity by up to 15%.</p>
+                <ul class="feature-list">
+                    <li><span class="check-icon">✓</span> Built-in productivity playlists</li>
+                    <li><span class="check-icon">✓</span> Sync with your Spotify account</li>
+                    <li><span class="check-icon">✓</span> Save custom playlists for different tasks</li>
+                </ul>
+                <div class="feature-cta">
+                    <button class="feature-btn" onclick="window.location.href='login.html#signup'">Try It Now</button>
                 </div>
-                <div class="step">
-                    <div class="step-number">2</div>
-                    <h3>Focus for 25 Minutes</h3>
-                    <p>Commit to 25 minutes of focused, uninterrupted work</p>
+            </div>
+            <div class="feature-visual">
+                <div class="device-frame">
+                    <img src="https://placehold.co/600x400/3C6E71/FFFFFF?text=Spotify+Integration" alt="Spotify Integration" class="feature-image">
+                    <div class="music-player-overlay">
+                        <div class="music-player-header">
+                            <span class="playlist-name">Focus Flow</span>
+                            <span class="music-controls">
+                                <span class="music-icon">⏮️</span>
+                                <span class="music-icon playing">⏸️</span>
+                                <span class="music-icon">⏭️</span>
+                            </span>
+                        </div>
+                        <div class="song-progress">
+                            <div class="progress-bar">
+                                <div class="progress-fill"></div>
+                            </div>
+                            <div class="time-display">2:45 / 4:30</div>
+                        </div>
+                    </div>
                 </div>
-                <div class="step">
-                    <div class="step-number">3</div>
-                    <h3>Take a Break</h3>
-                    <p>Enjoy a 5-minute break to refresh your mind</p>
+            </div>
+        </section>
+
+        <!-- Feature Showcase: Journey & Gamification -->
+        <section class="feature-showcase journey-showcase reverse">
+            <div class="feature-content">
+                <div class="feature-badge">Gamified Experience</div>
+                <h2>Track Your <span class="accent-text">Journey</span> & Earn Rewards</h2>
+                <p>Stay motivated with our gamified productivity system. Earn points, unlock badges, and watch yourself level up as you build consistent productivity habits.</p>
+                <ul class="feature-list">
+                    <li><span class="check-icon">✓</span> Points system for completed sessions</li>
+                    <li><span class="check-icon">✓</span> Achievement badges for milestones</li>
+                    <li><span class="check-icon">✓</span> Progress visualization dashboard</li>
+                </ul>
+                <div class="feature-cta">
+                    <button class="feature-btn" onclick="window.location.href='login.html#signup'">Start Earning</button>
                 </div>
-                <div class="step">
-                    <div class="step-number">4</div>
-                    <h3>Track Progress</h3>
-                    <p>See your productivity improve as you complete tasks</p>
+            </div>
+            <div class="feature-visual">
+                <div class="device-frame">
+                    <img src="https://placehold.co/600x400/284B63/FFFFFF?text=Journey+Tracking" alt="Journey Tracking" class="feature-image">
+                    <div class="badge-overlay">
+                        <div class="badge-item">
+                            <div class="badge-icon">🔥</div>
+                            <div class="badge-label">7-Day Streak</div>
+                        </div>
+                        <div class="badge-item">
+                            <div class="badge-icon">💯</div>
+                            <div class="badge-label">100 Sessions</div>
+                        </div>
+                        <div class="badge-item">
+                            <div class="badge-icon">🏆</div>
+                            <div class="badge-label">Level 5</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Feature Showcase: Streak Counting -->
+        <section class="feature-showcase streak-showcase">
+            <div class="feature-content">
+                <div class="feature-badge">Habit Building</div>
+                <h2>Build Consistency with <span class="accent-text">Streak</span> Tracking</h2>
+                <p>Maintain your productivity momentum with our visual streak counter. Studies show that tracking consecutive days of activity increases habit formation by over 60%.</p>
+                <ul class="feature-list">
+                    <li><span class="check-icon">✓</span> Daily streak counter</li>
+                    <li><span class="check-icon">✓</span> Calendar visualization</li>
+                    <li><span class="check-icon">✓</span> Streak protection features</li>
+                </ul>
+                <div class="feature-cta">
+                    <button class="feature-btn" onclick="window.location.href='login.html#signup'">Build Your Streak</button>
+                </div>
+            </div>
+            <div class="feature-visual">
+                <div class="device-frame">
+                    <img src="https://placehold.co/600x400/3C6E71/FFFFFF?text=Streak+Counter" alt="Streak Counter" class="feature-image">
+                    <div class="streak-calendar-overlay">
+                        <div class="streak-header">
+                            <div class="current-streak">
+                                <span class="streak-count">14</span>
+                                <span class="streak-label">Day Streak</span>
+                            </div>
+                            <div class="longest-streak">
+                                <span class="streak-count">21</span>
+                                <span class="streak-label">Longest</span>
+                            </div>
+                        </div>
+                        <div class="mini-calendar">
+                            <div class="calendar-day active">M</div>
+                            <div class="calendar-day active">T</div>
+                            <div class="calendar-day active">W</div>
+                            <div class="calendar-day active">T</div>
+                            <div class="calendar-day active">F</div>
+                            <div class="calendar-day active">S</div>
+                            <div class="calendar-day today">S</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Feature Showcase: Cross-Platform -->
+        <section class="feature-showcase platform-showcase reverse">
+            <div class="feature-content">
+                <div class="feature-badge">Seamless Experience</div>
+                <h2>Work Across <span class="accent-text">All Devices</span> Seamlessly</h2>
+                <p>Start a Pomodoro session on your desktop and check your progress on mobile. Your timer, tasks, and progress sync instantly across all your devices.</p>
+                <ul class="feature-list">
+                    <li><span class="check-icon">✓</span> Real-time synchronization</li>
+                    <li><span class="check-icon">✓</span> Responsive design for all screens</li>
+                    <li><span class="check-icon">✓</span> Persistent timer even when switching devices</li>
+                </ul>
+                <div class="feature-cta">
+                    <button class="feature-btn" onclick="window.location.href='login.html#signup'">Experience It</button>
+                </div>
+            </div>
+            <div class="feature-visual multi-device">
+                <div class="device desktop">
+                    <div class="device-frame">
+                        <img src="https://placehold.co/600x400/284B63/FFFFFF?text=Desktop+App" alt="Desktop App" class="feature-image">
+                    </div>
+                </div>
+                <div class="device mobile">
+                    <div class="device-frame mobile-frame">
+                        <img src="https://placehold.co/300x600/3C6E71/FFFFFF?text=Mobile+App" alt="Mobile App" class="feature-image">
+                    </div>
+                </div>
+                <div class="connecting-line"></div>
+            </div>
+        </section>
+
+        <!-- 3D Cards Section -->
+        <section class="cards-section">
+            <h2>Built for <span class="accent-text">Productivity</span></h2>
+            <div class="card-container">
+                <div class="card">
+                    <div class="card-content">
+                        <div class="card-icon">🧠</div>
+                        <h3>Deep Focus</h3>
+                        <p>Minimize distractions and enter flow state with dedicated focus sessions</p>
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="card-content">
+                        <div class="card-icon">⚡</div>
+                        <h3>Energy Management</h3>
+                        <p>Balance intensive work with strategic breaks to maintain peak performance</p>
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="card-content">
+                        <div class="card-icon">📈</div>
+                        <h3>Progress Tracking</h3>
+                        <p>Visualize your productivity journey with detailed analytics and insights</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Testimonials Section -->
+        <section class="testimonials-section">
+            <h2>What Our Users Say</h2>
+            <div class="testimonials-container">
+                <div class="testimonial-card">
+                    <div class="testimonial-avatar">
+                        <img src="https://i.pravatar.cc/150?img=33" alt="User Avatar">
+                    </div>
+                    <div class="testimonial-content">
+                        <p>"The Spotify integration is amazing! I've created different playlists for different types of work, and it helps me get in the zone immediately."</p>
+                        <div class="testimonial-author">Alex K., Software Developer</div>
+                    </div>
+                </div>
+                <div class="testimonial-card">
+                    <div class="testimonial-avatar">
+                        <img src="https://i.pravatar.cc/150?img=10" alt="User Avatar">
+                    </div>
+                    <div class="testimonial-content">
+                        <p>"I love seeing my streak grow each day. It's become a game to maintain my productivity streak, and I've never been more consistent!"</p>
+                        <div class="testimonial-author">Maya R., Graduate Student</div>
+                    </div>
+                </div>
+                <div class="testimonial-card">
+                    <div class="testimonial-avatar">
+                        <img src="https://i.pravatar.cc/150?img=3" alt="User Avatar">
+                    </div>
+                    <div class="testimonial-content">
+                        <p>"The Journey feature turned my productivity into a fun game. I find myself wanting to complete one more Pomodoro just to earn the next badge."</p>
+                        <div class="testimonial-author">Sam T., Content Creator</div>
+                    </div>
                 </div>
             </div>
         </section>
@@ -92,15 +292,44 @@
                 <a href="#">Privacy Policy</a>
                 <a href="#">Terms of Service</a>
                 <a href="#">Support</a>
+                <a href="#">About Us</a>
             </div>
         </footer>
     </div>
+
+    <!-- Curved background elements -->
+    <div class="bg-element bg-element-1"></div>
+    <div class="bg-element bg-element-2"></div>
+    <div class="bg-element bg-element-3"></div>
 
     <!-- Firebase SDK -->
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
     <script src="firebase-config.js"></script>
     <script>
+        // Theme toggle functionality
+        const themeToggle = document.getElementById('theme-toggle-landing');
+        
+        // Check if user has a saved theme preference
+        const savedTheme = localStorage.getItem('theme') || 'dark';
+        document.documentElement.setAttribute('data-theme', savedTheme);
+        
+        // Set the toggle to match the current theme
+        if (savedTheme === 'dark') {
+            themeToggle.checked = true;
+        }
+        
+        // Listen for toggle changes
+        themeToggle.addEventListener('change', function() {
+            if (this.checked) {
+                document.documentElement.setAttribute('data-theme', 'dark');
+                localStorage.setItem('theme', 'dark');
+            } else {
+                document.documentElement.setAttribute('data-theme', 'light');
+                localStorage.setItem('theme', 'light');
+            }
+        });
+        
         // Redirect to app if user is already signed in
         document.addEventListener('DOMContentLoaded', function() {
             // Hide everything initially to prevent layout flashing
@@ -122,6 +351,30 @@
             setTimeout(function() {
                 document.body.style.opacity = '1';
             }, 500);
+        });
+        
+        // Add 3D tilt effect to cards
+        const cards = document.querySelectorAll('.card');
+        
+        cards.forEach(card => {
+            card.addEventListener('mousemove', e => {
+                const rect = card.getBoundingClientRect();
+                const x = e.clientX - rect.left;
+                const y = e.clientY - rect.top;
+                
+                const centerX = rect.width / 2;
+                const centerY = rect.height / 2;
+                
+                const rotateX = (y - centerY) / 10;
+                const rotateY = (centerX - x) / 10;
+                
+                card.style.transform = `perspective(1000px) rotateX(${rotateX}deg) rotateY(${rotateY}deg)`;
+            });
+            
+            card.addEventListener('mouseleave', () => {
+                card.style.transform = 'perspective(1000px) rotateX(0) rotateY(0)';
+                card.style.transition = 'transform 0.5s ease';
+            });
         });
     </script>
 </body>
